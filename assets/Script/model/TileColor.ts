@@ -4,5 +4,5 @@ export enum TileColor {
     GREEN = 'green',
     BLUE = 'blue',
     YELLOW = 'yellow',
-    PURPLE_PINK = 'purple_pink',
+    PURPURE = 'purpure',
 }

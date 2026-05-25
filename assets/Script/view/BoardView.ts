@@ -9,6 +9,15 @@ const { ccclass, property } = cc._decorator;
 import Board from "../model/Board";
 import { TileColor } from "../model/TileColor";
 
+// Маппинг цветов тайлов на имена спрайтов в атласе
+const TILE_SPRITE_MAP: Record<TileColor, string> = {
+    [TileColor.RED]: 'block_red',
+    [TileColor.GREEN]: 'block_green',
+    [TileColor.BLUE]: 'block_blue',
+    [TileColor.YELLOW]: 'block_yellow',
+    [TileColor.PURPURE]: 'block_purpure'
+};
+
 @ccclass
 export default class BoardView extends cc.Component {
 
@@ -18,17 +27,49 @@ export default class BoardView extends cc.Component {
     cellSize: number = 50;
 
     @property(cc.Integer)
-    padding: number = 2;
+    padding: number = 1;
+
+    @property(cc.SpriteAtlas)
+    tileAtlas: cc.SpriteAtlas | null = null;
+
+    private tileSpriteFrames: Map<TileColor, cc.SpriteFrame> = new Map();
 
 
     // LIFE-CYCLE CALLBACKS:
 
     onLoad() {
         BoardView.createWhiteSpriteFrame();
+        this.loadTileSpriteFrames();
     }
-
+    
     start() {
 
+    }
+
+    private loadTileSpriteFrames(): void {
+        if (!this.tileAtlas) {
+            cc.error('[BoardView] Tile atlas not assigned');
+            return;
+        }
+
+        let loadedCount = 0;
+        for (const [color, spriteName] of Object.entries(TILE_SPRITE_MAP)) {
+
+            const spriteFrame = this.tileAtlas.getSpriteFrame(spriteName);
+
+            if (spriteFrame) {
+                this.tileSpriteFrames.set(color as TileColor, spriteFrame);
+                loadedCount++;
+            } else {
+                cc.warn(`[BoardView] ✗ Sprite frame ${spriteName} not found for color ${color}`);
+            }
+        }
+
+        if (loadedCount < Object.keys(TILE_SPRITE_MAP).length) {
+            cc.warn(`[BoardView] Loaded only ${loadedCount}/${Object.keys(TILE_SPRITE_MAP).length} tile sprites`);
+        } else {
+            // cc.log(`[BoardView] ✓ Successfully loaded all ${loadedCount} tile sprites`);
+        }
     }
 
     render(board: Board) {
@@ -46,7 +87,7 @@ export default class BoardView extends cc.Component {
             for (let row = 0; row < height; row++) {
                 const tile = board.getTile(col, row);
                 if (!tile) {
-                    cc.warn(`[BoardView] Тайл не найден на позиции (${col}, ${row})`);
+                    cc.warn(`[BoardView] The tile was not found in the position (${col}, ${row})`);
                     continue;
                 }
 
@@ -55,7 +96,7 @@ export default class BoardView extends cc.Component {
             }
         }
 
-        cc.log(`[BoardView] Отрисовано ${width * height} тайлов`);
+        cc.log(`[BoardView] ${width * height} tiles have been drawn`);
     }
 
     // update (dt) {}
@@ -75,11 +116,11 @@ export default class BoardView extends cc.Component {
                 ctx.fillRect(0, 0, 64, 64);
                 texture.initWithElement(canvas);
                 spriteFrame.setTexture(texture);
-                cc.log('[BoardView] Создан белый спрайт');
+                cc.log('[BoardView] Created white sprite');
 
                 BoardView.WHITE_SPRITE_FRAME = spriteFrame;
             } else {
-                cc.error('[BoardView] Не удалось создать canvas контекст');
+                cc.error("[BoardView] Couldn't create canvas context");
             }
         }
     }
@@ -94,7 +135,7 @@ export default class BoardView extends cc.Component {
             case TileColor.GREEN: return cc.Color.GREEN;
             case TileColor.BLUE: return cc.Color.BLUE;
             case TileColor.YELLOW: return cc.Color.YELLOW;
-            case TileColor.PURPLE_PINK:
+            case TileColor.PURPURE:
                 const color = new cc.Color();
                 color.fromHEX("#FF00FF");
                 return color;
@@ -108,19 +149,47 @@ export default class BoardView extends cc.Component {
 
         // Добавление компонента Sprite
         const sprite = tileNode.addComponent(cc.Sprite);
-        if (BoardView.WHITE_SPRITE_FRAME) {
-            sprite.spriteFrame = BoardView.WHITE_SPRITE_FRAME;
+
+        // Пытаемся использовать спрайт из атласа
+        let spriteFrame: cc.SpriteFrame | null = this.tileSpriteFrames.get(color) || null;
+        if (spriteFrame) {
+            sprite.spriteFrame = spriteFrame;
+            // Изображения уже цветные, поэтому используем белый цвет для чистого отображения
+            tileNode.color = cc.Color.WHITE;
+        } else {
+            // Fallback: используем старый метод с белым спрайтом и наложением цвета
+            if (BoardView.WHITE_SPRITE_FRAME) {
+                spriteFrame = BoardView.WHITE_SPRITE_FRAME;
+                sprite.spriteFrame = spriteFrame;
+                tileNode.color = this.tileColorToCCColor(color);
+            } else {
+                cc.error(`[BoardView] createTileNode (${col}, ${row}): no sprite frame available for ${color}`);
+            }
         }
 
-        // Установка цвета (в Cocos Creator цвет устанавливается на узле)
-        tileNode.color = this.tileColorToCCColor(color);
-
-        // Установка размера
+        // Установка размера ячейки (фиксированный размер)
         tileNode.setContentSize(this.cellSize, this.cellSize);
+        
+        // Масштабирование и центрирование спрайта
+        if (spriteFrame) {
+            const rect = spriteFrame.getRect();
+            const originalWidth = rect.width;
+            const originalHeight = rect.height;
+            
+            // Вычисляем масштаб
+            const scaleX = this.cellSize / originalWidth;
+            const scaleY = this.cellSize / originalHeight;
+            
+            const scale = Math.min(scaleX, scaleY);
 
-        // Расчет позиции (центрирование доски)
+            // Применяем масштаб к узлу
+            tileNode.setScale(scale, scale);
+        }
+
+        // Расчет позиции
         const x = (col - width / 2 + 0.5) * (this.cellSize + this.padding);
         const y = (row - height / 2 + 0.5) * (this.cellSize + this.padding);
+
         tileNode.setPosition(x, y);
 
         return tileNode;

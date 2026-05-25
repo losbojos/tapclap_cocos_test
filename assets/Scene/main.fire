@@ -528,6 +528,11 @@
       "__id__": 10
     },
     "_enabled": true,
+    "cellSize": 50,
+    "padding": 1,
+    "tileAtlas": {
+      "__uuid__": "51cf15aa-333b-420a-b875-c56e25c26fdf"
+    },
     "_id": "a3Kja3iD9Ex67VN9UJz+uQ"
   },
   {
