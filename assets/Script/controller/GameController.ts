@@ -5,6 +5,7 @@
 // Learn life-cycle callbacks:
 //  - https://docs.cocos.com/creator/2.4/manual/en/scripting/life-cycle-callbacks.html
 
+import GameConfig from "../GameConfig";
 import Board from "../model/Board";
 import BoardView from "../view/BoardView";
 
@@ -16,10 +17,10 @@ export default class GameController extends cc.Component {
     private _board?: Board;
 
     @property(cc.Node)
-    field?: cc.Node;
+    field: cc.Node | null = null;
 
     @property(BoardView)
-    boardView?: BoardView;
+    boardView: BoardView | null = null;
 
     // LIFE-CYCLE CALLBACKS:
 
@@ -32,7 +33,7 @@ export default class GameController extends cc.Component {
     }
 
     start() {
-        this._board = new Board(10, 10);
+        this._board = new Board(GameConfig.COLS, GameConfig.ROWS);
         cc.log('[GameController] Board created:', this._board.toString());
 
         if (!this.boardView) {

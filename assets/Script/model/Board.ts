@@ -1,6 +1,7 @@
 import Utils from "../utils/Utils";
-import Tile from "./Tile";
+import NormalTile from "./NormalTile";
 import { TileColor } from "./TileColor";
+import Tile from "./Tile";
 
 export default class Board {
     private _width: number;
@@ -16,7 +17,7 @@ export default class Board {
         for (let x = 0; x < width; x++) {
             this._tiles[x] = [];
             for (let y = 0; y < height; y++) {
-                this._tiles[x][y] = new Tile(Utils.getRandomEnumValue(TileColor));
+                this._tiles[x][y] = new NormalTile(Utils.getRandomEnumValue(TileColor));
             }
         }
     }

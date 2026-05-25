@@ -1,17 +1,15 @@
-import { TileColor } from "./TileColor";
+import { TileType } from "./TileType";
 
 export default class Tile {
-    private _color: TileColor;
+    private _type: TileType;
  
-    constructor(color: TileColor) {
-        this._color = color;
+    constructor(type: TileType) {
+        this._type = type;
     }
 
-    get color(): TileColor {
-        return this._color;
-    }    
+    get type(): TileType { return this._type; } 
 
     toString(): string {
-        return `[Tile color=${this._color}]`;
+        return `[TileData type=${this.type}]`;
     }
 }

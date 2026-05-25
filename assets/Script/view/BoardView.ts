@@ -7,7 +7,9 @@
 
 const { ccclass, property } = cc._decorator;
 import Board from "../model/Board";
+import NormalTile from "../model/NormalTile";
 import { TileColor } from "../model/TileColor";
+import Tile from "../model/Tile";
 
 // Маппинг цветов тайлов на имена спрайтов в атласе
 const TILE_SPRITE_MAP: Record<TileColor, string> = {
@@ -41,7 +43,7 @@ export default class BoardView extends cc.Component {
         BoardView.createWhiteSpriteFrame();
         this.loadTileSpriteFrames();
     }
-    
+
     start() {
 
     }
@@ -91,7 +93,7 @@ export default class BoardView extends cc.Component {
                     continue;
                 }
 
-                const tileNode = this.createTileNode(col, row, tile.color, width, height);
+                const tileNode = this.createTileNode(col, row, tile, width, height);
                 this.node.addChild(tileNode);
             }
         }
@@ -143,9 +145,17 @@ export default class BoardView extends cc.Component {
         }
     }
 
-    private createTileNode(col: number, row: number, color: TileColor, width: number, height: number): cc.Node {
+    private createTileNode(col: number, row: number, tile: Tile, width: number, height: number): cc.Node {
+
         // Создание узла
         const tileNode = new cc.Node(`Tile_${col}_${row}`);
+
+        if (!(tile instanceof NormalTile)) {
+            cc.warn('[BoardView] Not supported tile type ');
+            return tileNode;
+        }
+
+        const color: TileColor = (tile as NormalTile).color;
 
         // Добавление компонента Sprite
         const sprite = tileNode.addComponent(cc.Sprite);
@@ -169,17 +179,17 @@ export default class BoardView extends cc.Component {
 
         // Установка размера ячейки (фиксированный размер)
         tileNode.setContentSize(this.cellSize, this.cellSize);
-        
+
         // Масштабирование и центрирование спрайта
         if (spriteFrame) {
             const rect = spriteFrame.getRect();
             const originalWidth = rect.width;
             const originalHeight = rect.height;
-            
+
             // Вычисляем масштаб
             const scaleX = this.cellSize / originalWidth;
             const scaleY = this.cellSize / originalHeight;
-            
+
             const scale = Math.min(scaleX, scaleY);
 
             // Применяем масштаб к узлу
@@ -193,5 +203,6 @@ export default class BoardView extends cc.Component {
         tileNode.setPosition(x, y);
 
         return tileNode;
+
     }
 }
