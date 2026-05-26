@@ -95,6 +95,18 @@ export default class Board {
         return group.length >= GameConfig.MIN_BLAST_GROUP_SIZE;
     }
 
+    /** Есть ли на поле хотя бы одна группа для сжигания. */
+    hasAnyBlastableMove(): boolean {
+        for (let col = 0; col < this._colCount; col++) {
+            for (let row = 0; row < this._rowCount; row++) {
+                if (Board.isBlastableGroup(this.findGroup(col, row))) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
     /**
      * Сжигает группу, ссыпает тайлы вниз (row 0 — низ поля), заполняет пустоты сверху.
      * @returns очки за ход (0, если группа невалидна)

@@ -7,18 +7,25 @@
 
 import GameConfig from "../GameConfig";
 import Board from "../model/Board";
+import GameState from "../model/GameState";
 import BoardView from "../view/BoardView";
+import HudView from "../view/HudView";
 
-const {ccclass, property} = cc._decorator;
+const { ccclass, property } = cc._decorator;
 
 @ccclass
 export default class GameController extends cc.Component {
 
     private _board?: Board;
     private _boardView: BoardView | null = null;
+    private _hud: HudView | null = null;
+    private readonly _gameState = new GameState(GameConfig.WIN_SCORE, GameConfig.TOTAL_MOVES);
 
     @property(cc.Node)
-    boardNode: cc.Node | null = null; // Узел сцены с BoardView (игровое поле)
+    boardNode: cc.Node | null = null;
+
+    @property(HudView)
+    hud: HudView | null = null;
 
     onLoad() {
         cc.log('[GameController] ready');
@@ -26,6 +33,12 @@ export default class GameController extends cc.Component {
         if (!this._boardView && this.boardNode) {
             this._boardView = this.boardNode.getComponent(BoardView);
         }
+
+        this._hud = this.hud || this.getComponent(HudView);
+        if (!this._hud) {
+            this._hud = this.addComponent(HudView);
+        }
+        this.bindHudLabelFromScene();
     }
 
     start() {
@@ -37,12 +50,39 @@ export default class GameController extends cc.Component {
             return;
         }
 
+        if (!this._hud) {
+            cc.warn('[GameController] HudView not found. Add HudView to Canvas and assign infoLabel.');
+        }
+
         this._boardView.setOnTileClick((col, row) => this.onTileClicked(col, row));
         this._boardView.render(this._board);
+        this.evaluateEndOfGame();
+    }
+
+    private bindHudLabelFromScene(): void {
+        if (!this._hud || this._hud.infoLabel) {
+            return;
+        }
+
+        const labelNode = this.node.getChildByName('label');
+        if (!labelNode) {
+            return;
+        }
+
+        const label = labelNode.getComponent(cc.Label);
+        if (label) {
+            this._hud.infoLabel = label;
+        }
+    }
+
+    private refreshHud(): void {
+        if (this._hud) {
+            this._hud.render(this._gameState);
+        }
     }
 
     private onTileClicked(col: number, row: number): void {
-        if (!this._board || !this._boardView) {
+        if (!this._board || !this._boardView || !this._gameState.isPlaying) {
             return;
         }
 
@@ -57,9 +97,26 @@ export default class GameController extends cc.Component {
         }
 
         this._boardView.playBlast(this._board, group, (score) => {
-            cc.log(`[GameController] blasted ${group.length} tiles, +${score} score`);
+            this._gameState.applyMove(score);
+            this.evaluateEndOfGame();
+            cc.log(
+                `[GameController] blast done: +${score}, score=${this._gameState.score}, moves=${this._gameState.movesRemaining}`
+            );
         });
     }
 
-    // update (dt) {}
+    private evaluateEndOfGame(): void {
+        if (!this._board) {
+            return;
+        }
+
+        if (!this._gameState.isGameOver) {
+            if (!this._board.hasAnyBlastableMove()) {
+                this._gameState.setLose("There are no valid moves in the game");
+                cc.log(`[GameController] LOSE: ${this._gameState.getLoseReason()}`);
+            }
+        }
+
+        this.refreshHud();
+    }
 }
