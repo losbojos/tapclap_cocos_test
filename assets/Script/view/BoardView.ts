@@ -7,6 +7,7 @@
 
 const { ccclass, property } = cc._decorator;
 import Board from "../model/Board";
+import { BoardCell } from "../model/Board";
 import NormalTile from "../model/NormalTile";
 import { TileColor } from "../model/TileColor";
 import Tile from "../model/Tile";
@@ -21,6 +22,13 @@ const TILE_SPRITE_MAP: Record<TileColor, string> = {
 };
 
 export type TileClickHandler = (col: number, row: number) => void;
+type BlastCompleteHandler = (score: number) => void;
+
+interface TileNodeMeta {
+    col: number;
+    row: number;
+    baseScale: number;
+}
 
 @ccclass
 export default class BoardView extends cc.Component {
@@ -36,22 +44,31 @@ export default class BoardView extends cc.Component {
     @property(cc.SpriteAtlas)
     tileAtlas: cc.SpriteAtlas | null = null;
 
+    @property({ tooltip: 'Длительность исчезновения группы (сек)' })
+    blastDuration: number = 0.18;
+
+    @property({ tooltip: 'Длительность падения тайлов (сек)' })
+    fallDuration: number = 0.22;
+
+    @property({ tooltip: 'Длительность прилёта новых тайлов (сек)' })
+    refillDuration: number = 0.28;
+
     private tileSpriteFrames: Map<TileColor, cc.SpriteFrame> = new Map();
+    private _tileNodes: Map<string, cc.Node> = new Map();
     private _onTileClick: TileClickHandler | null = null;
+    private _isAnimating: boolean = false;
+
+    get isAnimating(): boolean {
+        return this._isAnimating;
+    }
 
     setOnTileClick(handler: TileClickHandler | null): void {
         this._onTileClick = handler;
     }
 
-    // LIFE-CYCLE CALLBACKS:
-
     onLoad() {
         BoardView.createWhiteSpriteFrame();
         this.loadTileSpriteFrames();
-    }
-
-    start() {
-
     }
 
     private loadTileSpriteFrames(): void {
@@ -62,7 +79,6 @@ export default class BoardView extends cc.Component {
 
         let loadedCount = 0;
         for (const [color, spriteName] of Object.entries(TILE_SPRITE_MAP)) {
-
             const spriteFrame = this.tileAtlas.getSpriteFrame(spriteName);
 
             if (spriteFrame) {
@@ -75,22 +91,15 @@ export default class BoardView extends cc.Component {
 
         if (loadedCount < Object.keys(TILE_SPRITE_MAP).length) {
             cc.warn(`[BoardView] Loaded only ${loadedCount}/${Object.keys(TILE_SPRITE_MAP).length} tile sprites`);
-        } else {
-            // cc.log(`[BoardView] ✓ Successfully loaded all ${loadedCount} tile sprites`);
         }
     }
 
-    render(board: Board) {
-        cc.log('[BoardView] render', board.toString());
-
-        // Очищаем предыдущие тайлы
+    render(board: Board): void {
         this.clearTiles();
 
-        // Размеры доски
-        const width = board.width;
-        const height = board.height;
+        const width = board.colCount;
+        const height = board.rowCount;
 
-        // Создаём узел для каждой ячейки
         for (let col = 0; col < width; col++) {
             for (let row = 0; row < height; row++) {
                 const tile = board.getTile(col, row);
@@ -101,18 +110,186 @@ export default class BoardView extends cc.Component {
 
                 const tileNode = this.createTileNode(col, row, tile, width, height);
                 this.node.addChild(tileNode);
+                this.registerTileNode(tileNode, col, row);
             }
         }
-
-        cc.log(`[BoardView] ${width * height} tiles have been drawn`);
     }
 
-    // update (dt) {}
+    playBlast(board: Board, group: BoardCell[], onComplete: BlastCompleteHandler | null): void {
+        if (this._isAnimating || !Board.isBlastableGroup(group)) {
+            return;
+        }
+
+        this._isAnimating = true;
+
+        const colCount = board.colCount;
+        const rowCount = board.rowCount;
+        const removeKeys = new Set(group.map(cell => BoardView.cellKey(cell.col, cell.row)));
+
+        const columnSurvivors = this.collectColumnSurvivors(removeKeys);
+        const blastNodes = group
+            .map(cell => this._tileNodes.get(BoardView.cellKey(cell.col, cell.row)))
+            .filter((node): node is cc.Node => !!node);
+
+        removeKeys.forEach(key => this._tileNodes.delete(key));
+
+        this.animateBlastNodes(blastNodes, () => {
+            const score = board.blast(group);
+            this.animateColumnMoves(board, columnSurvivors, colCount, rowCount, () => {
+                this._isAnimating = false;
+                if (onComplete) {
+                    onComplete(score);
+                }
+            });
+        });
+    }
+
+    private collectColumnSurvivors(removeKeys: Set<string>): Map<number, cc.Node[]> {
+        const columnSurvivors = new Map<number, cc.Node[]>();
+
+        this._tileNodes.forEach((node, key) => {
+            if (removeKeys.has(key)) {
+                return;
+            }
+
+            const meta = this.getTileNodeMeta(node);
+            if (!meta) {
+                return;
+            }
+
+            if (!columnSurvivors.has(meta.col)) {
+                columnSurvivors.set(meta.col, []);
+            }
+            columnSurvivors.get(meta.col)!.push(node);
+        });
+
+        columnSurvivors.forEach(nodes => {
+            nodes.sort((a, b) => this.getTileNodeMeta(a)!.row - this.getTileNodeMeta(b)!.row);
+        });
+
+        return columnSurvivors;
+    }
+
+    /** Возвращает колбэк: вызвать по завершении каждого из total твинов. При total === 0 сразу onComplete. */
+    private createTweenCounter(total: number, onComplete: () => void): () => void {
+        if (total <= 0) {
+            onComplete();
+            return () => {};
+        }
+
+        let remaining = total;
+        return () => {
+            remaining--;
+            if (remaining === 0) {
+                onComplete();
+            }
+        };
+    }
+
+    private animateBlastNodes(nodes: cc.Node[], onComplete: () => void): void {
+        const onTweenDone = this.createTweenCounter(nodes.length, onComplete);
+
+        nodes.forEach((node, index) => {
+            cc.tween(node)
+                .delay(index * 0.02)
+                .to(this.blastDuration, { scale: 0, opacity: 0 }, { easing: 'backIn' })
+                .call(() => {
+                    node.destroy();
+                    onTweenDone();
+                })
+                .start();
+        });
+    }
+
+    /**
+     * Падение: выживший сдвигается, если старый row ≠ новый index (после compact).
+     * Refill: в столбце height - survivors.length новых (= число сгоревших в этом столбце).
+     */
+    private countColumnMoveTweens(
+        columnSurvivors: Map<number, cc.Node[]>,
+        width: number,
+        height: number
+    ): number {
+        let count = 0;
+
+        for (let col = 0; col < width; col++) {
+            const survivors = columnSurvivors.get(col) || [];
+
+            survivors.forEach((node, index) => {
+                const meta = this.getTileNodeMeta(node);
+                if (meta && meta.row !== index) {
+                    count++;
+                }
+            });
+
+            count += height - survivors.length;
+        }
+
+        return count;
+    }
+
+    private animateColumnMoves(
+        board: Board,
+        columnSurvivors: Map<number, cc.Node[]>,
+        width: number,
+        height: number,
+        onComplete: () => void
+    ): void {
+        this._tileNodes.clear();
+
+        const tweenCount = this.countColumnMoveTweens(columnSurvivors, width, height);
+        const onTweenDone = this.createTweenCounter(tweenCount, onComplete);
+
+        for (let col = 0; col < width; col++) {
+            const survivors = columnSurvivors.get(col) || [];
+
+            survivors.forEach((node, index) => {
+                const newRow = index;
+                const meta = this.getTileNodeMeta(node)!;
+                const needsMove = meta.row !== newRow;
+                const targetPos = this.cellToLocalPosition(col, newRow, width, height);
+
+                node.name = `Tile_${col}_${newRow}`;
+                this.setTileNodeMeta(node, col, newRow, meta.baseScale);
+                this.registerTileNode(node, col, newRow);
+
+                if (!needsMove) {
+                    return;
+                }
+
+                cc.tween(node)
+                    .to(this.fallDuration, { x: targetPos.x, y: targetPos.y }, { easing: 'sineOut' })
+                    .call(onTweenDone)
+                    .start();
+            });
+
+            const newTileCount = height - survivors.length;
+            for (let row = survivors.length; row < height; row++) {
+                const tile = board.getTile(col, row);
+                if (!tile) {
+                    continue;
+                }
+
+                const targetPos = this.cellToLocalPosition(col, row, width, height);
+                const spawnRow = row + newTileCount;
+                const spawnPos = this.cellToLocalPosition(col, spawnRow, width, height);
+
+                const tileNode = this.createTileNode(col, row, tile, width, height);
+                tileNode.setPosition(spawnPos);
+                tileNode.opacity = 255;
+                this.node.addChild(tileNode);
+                this.registerTileNode(tileNode, col, row);
+
+                cc.tween(tileNode)
+                    .to(this.refillDuration, { x: targetPos.x, y: targetPos.y }, { easing: 'backOut' })
+                    .call(onTweenDone)
+                    .start();
+            }
+        }
+    }
 
     private static createWhiteSpriteFrame(): void {
-
         if (!BoardView.WHITE_SPRITE_FRAME) {
-            // Простой белый спрайт через canvas (если в атласе нет кадра)
             const spriteFrame = new cc.SpriteFrame();
             const texture = new cc.Texture2D();
             const canvas = document.createElement('canvas');
@@ -124,8 +301,6 @@ export default class BoardView extends cc.Component {
                 ctx.fillRect(0, 0, 64, 64);
                 texture.initWithElement(canvas);
                 spriteFrame.setTexture(texture);
-                cc.log('[BoardView] Created white sprite');
-
                 BoardView.WHITE_SPRITE_FRAME = spriteFrame;
             } else {
                 cc.error("[BoardView] Couldn't create canvas context");
@@ -134,7 +309,30 @@ export default class BoardView extends cc.Component {
     }
 
     private clearTiles(): void {
+        this._tileNodes.clear();
         this.node.removeAllChildren();
+    }
+
+    private cellToLocalPosition(col: number, row: number, width: number, height: number): cc.Vec2 {
+        const x = (col - width / 2 + 0.5) * (this.cellSize + this.padding);
+        const y = (row - height / 2 + 0.5) * (this.cellSize + this.padding);
+        return cc.v2(x, y);
+    }
+
+    private registerTileNode(tileNode: cc.Node, col: number, row: number): void {
+        this._tileNodes.set(BoardView.cellKey(col, row), tileNode);
+    }
+
+    private static cellKey(col: number, row: number): string {
+        return `${col},${row}`;
+    }
+
+    private setTileNodeMeta(node: cc.Node, col: number, row: number, baseScale: number): void {
+        (node as cc.Node & { __tileMeta?: TileNodeMeta }).__tileMeta = { col, row, baseScale };
+    }
+
+    private getTileNodeMeta(node: cc.Node): TileNodeMeta | null {
+        return (node as cc.Node & { __tileMeta?: TileNodeMeta }).__tileMeta || null;
     }
 
     private tileColorToCCColor(tileColor: TileColor): cc.Color {
@@ -152,8 +350,6 @@ export default class BoardView extends cc.Component {
     }
 
     private createTileNode(col: number, row: number, tile: Tile, width: number, height: number): cc.Node {
-
-        // Создание узла
         const tileNode = new cc.Node(`Tile_${col}_${row}`);
 
         if (!(tile instanceof NormalTile)) {
@@ -161,60 +357,48 @@ export default class BoardView extends cc.Component {
             return tileNode;
         }
 
-        const color: TileColor = (tile as NormalTile).color;
-
+        const color: TileColor = tile.color;
         const sprite = tileNode.addComponent(cc.Sprite);
 
-        // Пытаемся взять кадр из атласа для этого цвета
         let spriteFrame: cc.SpriteFrame | null = this.tileSpriteFrames.get(color) || null;
         if (spriteFrame) {
             sprite.spriteFrame = spriteFrame;
             tileNode.color = cc.Color.WHITE;
+        } else if (BoardView.WHITE_SPRITE_FRAME) {
+            spriteFrame = BoardView.WHITE_SPRITE_FRAME;
+            sprite.spriteFrame = spriteFrame;
+            tileNode.color = this.tileColorToCCColor(color);
         } else {
-            // Запасной вариант: белый квадрат + цвет узла
-            if (BoardView.WHITE_SPRITE_FRAME) {
-                spriteFrame = BoardView.WHITE_SPRITE_FRAME;
-                sprite.spriteFrame = spriteFrame;
-                tileNode.color = this.tileColorToCCColor(color);
-            } else {
-                cc.error(`[BoardView] createTileNode (${col}, ${row}): no sprite frame available for ${color}`);
-            }
+            cc.error(`[BoardView] createTileNode (${col}, ${row}): no sprite frame available for ${color}`);
         }
 
-        // Размер ячейки в UI
         tileNode.setContentSize(this.cellSize, this.cellSize);
 
-        // Вписываем спрайт в ячейку, сохраняя пропорции
+        let baseScale = 1;
         if (spriteFrame) {
             const rect = spriteFrame.getRect();
-            const originalWidth = rect.width;
-            const originalHeight = rect.height;
-
-            const scaleX = this.cellSize / originalWidth;
-            const scaleY = this.cellSize / originalHeight;
-
-            const scale = Math.min(scaleX, scaleY);
-
+            const scale = Math.min(this.cellSize / rect.width, this.cellSize / rect.height);
+            baseScale = scale;
             tileNode.setScale(scale, scale);
         }
 
-        // Расчет позиции
-        const x = (col - width / 2 + 0.5) * (this.cellSize + this.padding);
-        const y = (row - height / 2 + 0.5) * (this.cellSize + this.padding);
-
-        tileNode.setPosition(x, y);
-
-        this.bindTileTouch(tileNode, col, row);
+        tileNode.setPosition(this.cellToLocalPosition(col, row, width, height));
+        this.setTileNodeMeta(tileNode, col, row, baseScale);
+        this.bindTileTouch(tileNode);
 
         return tileNode;
-
     }
 
-    private bindTileTouch(tileNode: cc.Node, col: number, row: number): void {
+    private bindTileTouch(tileNode: cc.Node): void {
         tileNode.on(cc.Node.EventType.TOUCH_END, (event: cc.Event.EventTouch) => {
             event.stopPropagation();
-            if (this._onTileClick) {
-                this._onTileClick(col, row);
+            if (this._isAnimating || !this._onTileClick) {
+                return;
+            }
+
+            const meta = this.getTileNodeMeta(tileNode);
+            if (meta) {
+                this._onTileClick(meta.col, meta.row);
             }
         });
     }

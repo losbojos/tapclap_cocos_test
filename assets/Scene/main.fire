@@ -533,6 +533,9 @@
     "tileAtlas": {
       "__uuid__": "51cf15aa-333b-420a-b875-c56e25c26fdf"
     },
+    "blastDuration": 0.48,
+    "fallDuration": 0.22,
+    "refillDuration": 0.28,
     "_id": "a3Kja3iD9Ex67VN9UJz+uQ"
   },
   {
@@ -587,8 +590,9 @@
       "__id__": 2
     },
     "_enabled": true,
-    "boardNode": null,
-    "boardView": null,
+    "boardNode": {
+      "__id__": 10
+    },
     "_id": "afvu6w0A1NzpuNts8eCQHa"
   }
 ]

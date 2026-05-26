@@ -10,18 +10,18 @@ export interface BoardCell {
 }
 
 export default class Board {
-    private _width: number;
-    private _height: number;
+    private _colCount: number;
+    private _rowCount: number;
     private _tiles: Tile[][];
 
-    constructor(width: number, height: number) {
-        this._width = width;
-        this._height = height;
+    constructor(colCount: number, rowCount: number) {
+        this._colCount = colCount;
+        this._rowCount = rowCount;
         this._tiles = [];
 
-        for (let x = 0; x < width; x++) {
+        for (let x = 0; x < colCount; x++) {
             this._tiles[x] = [];
-            for (let y = 0; y < height; y++) {
+            for (let y = 0; y < rowCount; y++) {
                 this._tiles[x][y] = new NormalTile(Utils.getRandomEnumValue(TileColor));
             }
         }
@@ -34,12 +34,12 @@ export default class Board {
         return this._tiles[col][row];
     }
 
-    get width(): number {
-        return this._width;
+    get colCount(): number {
+        return this._colCount;
     }
 
-    get height(): number {
-        return this._height;
+    get rowCount(): number {
+        return this._rowCount;
     }
 
     /** Соседняя группа того же цвета (4-связность), только NormalTile. */
@@ -108,7 +108,7 @@ export default class Board {
             group.map(cell => Board.cellKey(cell.col, cell.row))
         );
 
-        for (let col = 0; col < this._width; col++) {
+        for (let col = 0; col < this._colCount; col++) {
             this.compactColumn(col, toRemove);
         }
 
@@ -118,14 +118,14 @@ export default class Board {
     private compactColumn(col: number, toRemove: Set<string>): void {
         const remaining: Tile[] = [];
 
-        for (let row = 0; row < this._height; row++) {
+        for (let row = 0; row < this._rowCount; row++) {
             const key = Board.cellKey(col, row);
             if (!toRemove.has(key)) {
                 remaining.push(this._tiles[col][row]);
             }
         }
 
-        for (let row = 0; row < this._height; row++) {
+        for (let row = 0; row < this._rowCount; row++) {
             if (row < remaining.length) {
                 this._tiles[col][row] = remaining[row];
             } else {
@@ -142,7 +142,7 @@ export default class Board {
     ];
 
     private isInBounds(col: number, row: number): boolean {
-        return col >= 0 && col < this._width && row >= 0 && row < this._height;
+        return col >= 0 && col < this._colCount && row >= 0 && row < this._rowCount;
     }
 
     private static cellKey(col: number, row: number): string {
@@ -150,6 +150,6 @@ export default class Board {
     }
 
     toString(): string {
-        return `[Board width=${this._width}, height=${this._height}]`;
+        return `[Board width=${this._colCount}, height=${this._rowCount}]`;
     }
 }

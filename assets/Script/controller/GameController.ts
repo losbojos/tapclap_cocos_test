@@ -46,15 +46,19 @@ export default class GameController extends cc.Component {
             return;
         }
 
+        if (this._boardView.isAnimating) {
+            return;
+        }
+
         const group = this._board.findGroup(col, row);
         if (!Board.isBlastableGroup(group)) {
             cc.log(`[GameController] click (${col}, ${row}): group too small (${group.length})`);
             return;
         }
 
-        const score = this._board.blast(group);
-        this._boardView.render(this._board);
-        cc.log(`[GameController] blasted ${group.length} tiles, +${score} score`);
+        this._boardView.playBlast(this._board, group, (score) => {
+            cc.log(`[GameController] blasted ${group.length} tiles, +${score} score`);
+        });
     }
 
     // update (dt) {}
