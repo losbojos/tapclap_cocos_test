@@ -20,6 +20,8 @@ const TILE_SPRITE_MAP: Record<TileColor, string> = {
     [TileColor.PURPURE]: 'block_purpure'
 };
 
+export type TileClickHandler = (col: number, row: number) => void;
+
 @ccclass
 export default class BoardView extends cc.Component {
 
@@ -35,7 +37,11 @@ export default class BoardView extends cc.Component {
     tileAtlas: cc.SpriteAtlas | null = null;
 
     private tileSpriteFrames: Map<TileColor, cc.SpriteFrame> = new Map();
+    private _onTileClick: TileClickHandler | null = null;
 
+    setOnTileClick(handler: TileClickHandler | null): void {
+        this._onTileClick = handler;
+    }
 
     // LIFE-CYCLE CALLBACKS:
 
@@ -198,7 +204,18 @@ export default class BoardView extends cc.Component {
 
         tileNode.setPosition(x, y);
 
+        this.bindTileTouch(tileNode, col, row);
+
         return tileNode;
 
+    }
+
+    private bindTileTouch(tileNode: cc.Node, col: number, row: number): void {
+        tileNode.on(cc.Node.EventType.TOUCH_END, (event: cc.Event.EventTouch) => {
+            event.stopPropagation();
+            if (this._onTileClick) {
+                this._onTileClick(col, row);
+            }
+        });
     }
 }

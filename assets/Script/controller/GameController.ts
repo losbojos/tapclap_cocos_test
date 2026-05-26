@@ -37,8 +37,25 @@ export default class GameController extends cc.Component {
             return;
         }
 
+        this._boardView.setOnTileClick((col, row) => this.onTileClicked(col, row));
         this._boardView.render(this._board);
-    }    
+    }
+
+    private onTileClicked(col: number, row: number): void {
+        if (!this._board || !this._boardView) {
+            return;
+        }
+
+        const group = this._board.findGroup(col, row);
+        if (!Board.isBlastableGroup(group)) {
+            cc.log(`[GameController] click (${col}, ${row}): group too small (${group.length})`);
+            return;
+        }
+
+        const score = this._board.blast(group);
+        this._boardView.render(this._board);
+        cc.log(`[GameController] blasted ${group.length} tiles, +${score} score`);
+    }
 
     // update (dt) {}
 }
