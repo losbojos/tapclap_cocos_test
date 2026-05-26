@@ -13,7 +13,6 @@ export default class Board {
         this._height = height;
         this._tiles = [];
 
-        // Инициализация двумерного массива
         for (let x = 0; x < width; x++) {
             this._tiles[x] = [];
             for (let y = 0; y < height; y++) {

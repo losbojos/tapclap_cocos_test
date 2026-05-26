@@ -3,7 +3,7 @@
     "module": "commonjs",
     "lib": [ "es2015", "es2017", "dom" ],
     "target": "es5",
-    "ignoreDeprecations": "6.0", // Cocos возможно требует еще target = "es5" поэтому пока оставляем, но убираем предупреждение данной строкой
+    "ignoreDeprecations": "5.0", // Для Cocos требуется еще target = "es5" поэтому пока оставляем, но убираем предупреждение данной строкой
     "experimentalDecorators": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,

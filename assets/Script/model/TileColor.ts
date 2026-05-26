@@ -1,4 +1,4 @@
-// TileColor - enum of possible tile colors
+// Перечень возможных цветов тайла
 export enum TileColor {
     RED = 'red',
     GREEN = 'green',

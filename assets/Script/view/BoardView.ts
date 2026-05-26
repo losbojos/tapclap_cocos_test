@@ -80,11 +80,11 @@ export default class BoardView extends cc.Component {
         // Очищаем предыдущие тайлы
         this.clearTiles();
 
-        // Получаем размеры доски
+        // Размеры доски
         const width = board.width;
         const height = board.height;
 
-        // Создаём тайлы для каждой ячейки
+        // Создаём узел для каждой ячейки
         for (let col = 0; col < width; col++) {
             for (let row = 0; row < height; row++) {
                 const tile = board.getTile(col, row);
@@ -106,7 +106,7 @@ export default class BoardView extends cc.Component {
     private static createWhiteSpriteFrame(): void {
 
         if (!BoardView.WHITE_SPRITE_FRAME) {
-            // Создаём простой белый спрайт через canvas
+            // Простой белый спрайт через canvas (если в атласе нет кадра)
             const spriteFrame = new cc.SpriteFrame();
             const texture = new cc.Texture2D();
             const canvas = document.createElement('canvas');
@@ -157,17 +157,15 @@ export default class BoardView extends cc.Component {
 
         const color: TileColor = (tile as NormalTile).color;
 
-        // Добавление компонента Sprite
         const sprite = tileNode.addComponent(cc.Sprite);
 
-        // Пытаемся использовать спрайт из атласа
+        // Пытаемся взять кадр из атласа для этого цвета
         let spriteFrame: cc.SpriteFrame | null = this.tileSpriteFrames.get(color) || null;
         if (spriteFrame) {
             sprite.spriteFrame = spriteFrame;
-            // Изображения уже цветные, поэтому используем белый цвет для чистого отображения
             tileNode.color = cc.Color.WHITE;
         } else {
-            // Fallback: используем старый метод с белым спрайтом и наложением цвета
+            // Запасной вариант: белый квадрат + цвет узла
             if (BoardView.WHITE_SPRITE_FRAME) {
                 spriteFrame = BoardView.WHITE_SPRITE_FRAME;
                 sprite.spriteFrame = spriteFrame;
@@ -177,22 +175,20 @@ export default class BoardView extends cc.Component {
             }
         }
 
-        // Установка размера ячейки (фиксированный размер)
+        // Размер ячейки в UI
         tileNode.setContentSize(this.cellSize, this.cellSize);
 
-        // Масштабирование и центрирование спрайта
+        // Вписываем спрайт в ячейку, сохраняя пропорции
         if (spriteFrame) {
             const rect = spriteFrame.getRect();
             const originalWidth = rect.width;
             const originalHeight = rect.height;
 
-            // Вычисляем масштаб
             const scaleX = this.cellSize / originalWidth;
             const scaleY = this.cellSize / originalHeight;
 
             const scale = Math.min(scaleX, scaleY);
 
-            // Применяем масштаб к узлу
             tileNode.setScale(scale, scale);
         }
 

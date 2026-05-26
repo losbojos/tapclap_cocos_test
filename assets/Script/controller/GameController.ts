@@ -15,20 +15,16 @@ const {ccclass, property} = cc._decorator;
 export default class GameController extends cc.Component {
 
     private _board?: Board;
+    private _boardView: BoardView | null = null;
 
     @property(cc.Node)
-    field: cc.Node | null = null;
-
-    @property(BoardView)
-    boardView: BoardView | null = null;
-
-    // LIFE-CYCLE CALLBACKS:
+    boardNode: cc.Node | null = null; // Узел сцены с BoardView (игровое поле)
 
     onLoad() {
         cc.log('[GameController] ready');
 
-        if (!this.boardView && this.field) {
-            this.boardView = this.field.getComponent(BoardView);
+        if (!this._boardView && this.boardNode) {
+            this._boardView = this.boardNode.getComponent(BoardView);
         }
     }
 
@@ -36,12 +32,12 @@ export default class GameController extends cc.Component {
         this._board = new Board(GameConfig.COLS, GameConfig.ROWS);
         cc.log('[GameController] Board created:', this._board.toString());
 
-        if (!this.boardView) {
-            cc.error('[GameController] BoardView не найден. На Field: Add Component → BoardView, сохранить сцену.');
+        if (!this._boardView) {
+            cc.error('[GameController] BoardView not found. Add BoardView to boardNode, assign in Inspector, save scene.');
             return;
         }
 
-        this.boardView.render(this._board);
+        this._boardView.render(this._board);
     }    
 
     // update (dt) {}
