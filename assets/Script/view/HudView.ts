@@ -7,24 +7,43 @@ import { GameStatus } from "../model/GameStatus";
 export default class HudView extends cc.Component {
 
     @property(cc.Label)
-    infoLabel: cc.Label | null = null;
+    movesLabel: cc.Label | null = null;
+
+    @property(cc.Label)
+    scoreTitleLabel: cc.Label | null = null;
+
+    @property(cc.Label)
+    scoreValueLabel: cc.Label | null = null;
 
     render(state: GameState): void {
-        if (!this.infoLabel) {
-            return;
-        }
-
         if (state.status === GameStatus.Won) {
-            this.infoLabel.string = `Победа! Очки: ${state.score}`;
+            this.setMoves("");
+            this.setScore("ПОБЕДА!", `${state.score}`);
             return;
         }
 
         if (state.status === GameStatus.Lost) {
-            this.infoLabel.string = `Поражение. ${state.getLoseReason()}. Очки: ${state.score}`;
+            this.setMoves("");
+            this.setScore("ПОРАЖЕНИЕ", `${state.score}`);
             return;
         }
 
-        this.infoLabel.string =
-            `Очки: ${state.score} / ${GameConfig.WIN_SCORE}    Ходов осталось: ${state.movesRemaining}`;
+        this.setMoves(`${state.movesRemaining}`);
+        this.setScore("ОЧКИ:", `${state.score}/${GameConfig.WIN_SCORE}`);
+    }
+
+    private setMoves(text: string): void {
+        if (this.movesLabel) {
+            this.movesLabel.string = text;
+        }
+    }
+
+    private setScore(title: string, value: string): void {
+        if (this.scoreTitleLabel) {
+            this.scoreTitleLabel.string = title;
+        }
+        if (this.scoreValueLabel) {
+            this.scoreValueLabel.string = value;
+        }
     }
 }

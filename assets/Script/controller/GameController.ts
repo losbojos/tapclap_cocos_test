@@ -27,6 +27,16 @@ export default class GameController extends cc.Component {
     @property(HudView)
     hud: HudView | null = null;
 
+    /** Узел с Sprite на весь экран; если пусто — ищется дочерний `background` у Canvas */
+    @property(cc.Node)
+    appBackgroundNode: cc.Node | null = null;
+
+    @property(cc.SpriteFrame)
+    appBgMobile: cc.SpriteFrame | null = null;
+
+    @property(cc.SpriteFrame)
+    appBgDesktop: cc.SpriteFrame | null = null;
+
     onLoad() {
         cc.log('[GameController] ready');
 
@@ -34,14 +44,16 @@ export default class GameController extends cc.Component {
             this._boardView = this.boardNode.getComponent(BoardView);
         }
 
-        this._hud = this.hud || this.getComponent(HudView);
-        if (!this._hud) {
-            this._hud = this.addComponent(HudView);
-        }
-        this.bindHudLabelFromScene();
+        this._hud = this.hud; // || this.findHudView();
+        //this.bindHudFromScene();
+
+        this.autoFitCanvas();
+        this.applyAppBackground();
+        //this.scheduleOnce(() => this.applyAppBackground(), 0);
     }
 
     start() {
+        //this.applyAppBackground();
         this._board = new Board(GameConfig.COLS, GameConfig.ROWS);
         cc.log('[GameController] Board created:', this._board.toString());
 
@@ -51,7 +63,9 @@ export default class GameController extends cc.Component {
         }
 
         if (!this._hud) {
-            cc.warn('[GameController] HudView not found. Add HudView to Canvas and assign infoLabel.');
+            cc.warn('[GameController] HudView not found. Add HudView to header and assign labels.');
+        } else {
+            this.refreshHud();
         }
 
         this._boardView.setOnTileClick((col, row) => this.onTileClicked(col, row));
@@ -59,21 +73,120 @@ export default class GameController extends cc.Component {
         this.evaluateEndOfGame();
     }
 
-    private bindHudLabelFromScene(): void {
-        if (!this._hud || this._hud.infoLabel) {
+    private autoFitCanvas() {
+        const canvas = this.node.getComponent(cc.Canvas);
+
+        const designSize = cc.view.getDesignResolutionSize();
+        cc.log('designSize', designSize);
+
+        const screenSize = cc.view.getFrameSize();
+        cc.log('screenSize', screenSize);
+
+        // Сравниваем соотношения сторон дизайна и экрана устройства
+        if (screenSize.width / screenSize.height > designSize.width / designSize.height) {
+            // Экран шире -> подгоняем по высоте
+            canvas.fitHeight = true;
+            canvas.fitWidth = false;
+        } else {
+            // Экран уже -> подгоняем по ширине
+            canvas.fitWidth = true;
+            canvas.fitHeight = false;
+        }        
+    }
+
+    /** Фон приложения: мобильный / десктопный спрайт по `cc.sys.isMobile` */
+    private applyAppBackground(): void {
+        const bgNode = this.appBackgroundNode || this.node.getChildByName('background');
+        if (!bgNode) {
+            cc.warn('[GameController] Background node not found. Add child `background` with Sprite or assign appBackgroundNode.');
             return;
         }
 
-        const labelNode = this.node.getChildByName('label');
-        if (!labelNode) {
+        const sprite = bgNode.getComponent(cc.Sprite);
+        if (!sprite) {
+            cc.warn('[GameController] Node for app background has no Sprite component.');
             return;
         }
 
-        const label = labelNode.getComponent(cc.Label);
-        if (label) {
-            this._hud.infoLabel = label;
+        bgNode.color = cc.color(255, 255, 255);
+        bgNode.opacity = 255;
+        bgNode.zIndex = -1000;
+
+        const parent = bgNode.parent;
+        if (parent) {
+            const cameraNode = parent.getChildByName('Main Camera');
+            const targetIndex = cameraNode ? cameraNode.getSiblingIndex() + 1 : 0;
+            bgNode.setSiblingIndex(targetIndex);
+        }
+
+        const frame = cc.sys.isMobile ? this.appBgMobile : this.appBgDesktop;
+        if (frame) {
+            sprite.spriteFrame = frame;
+            cc.log(`[GameController] App background: ${cc.sys.isMobile ? 'mobile' : 'desktop'}`);
+        } else {
+            cc.warn(
+                `[GameController] Assign appBgMobile and appBgDesktop in Inspector (missing: ${cc.sys.isMobile ? 'appBgMobile' : 'appBgDesktop'}).`
+            );
         }
     }
+
+    /*
+    private findHudView(): HudView | null {
+        const header = this.node.getChildByName('header');
+        if (header) {
+            const hudOnHeader = header.getComponent(HudView);
+            if (hudOnHeader) {
+                return hudOnHeader;
+            }
+        }
+
+        return this.getComponent(HudView);
+    }
+
+    private bindHudFromScene(): void {
+        if (!this._hud) {
+            return;
+        }
+
+        const header = this.node.getChildByName('header');
+        if (!header) {
+            return;
+        }
+
+        const content = header.getChildByName('content');
+        if (!content) {
+            return;
+        }
+
+        if (!this._hud.movesLabel) {
+            const movesIndicator = content.getChildByName('movesIndicator');
+            const movesLabelNode = movesIndicator?.getChildByName('movesLabel');
+            const movesLabel = movesLabelNode?.getComponent(cc.Label);
+            if (movesLabel) {
+                this._hud.movesLabel = movesLabel;
+            }
+        }
+
+        const scoreIndicator = content.getChildByName('scoreIndicator');
+        if (!scoreIndicator) {
+            return;
+        }
+
+        if (!this._hud.scoreTitleLabel) {
+            const scoreTitle = scoreIndicator.getChildByName('scoreTitle')?.getComponent(cc.Label);
+            if (scoreTitle) {
+                this._hud.scoreTitleLabel = scoreTitle;
+            }
+        }
+
+        if (!this._hud.scoreValueLabel) {
+            const scoreValue = scoreIndicator.getChildByName('scoreValue')?.getComponent(cc.Label);
+            if (scoreValue) {
+                this._hud.scoreValueLabel = scoreValue;
+            }
+        }
+    }
+    */
 
     private refreshHud(): void {
         if (this._hud) {

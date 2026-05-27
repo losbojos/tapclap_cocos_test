@@ -55,6 +55,7 @@ export default class BoardView extends cc.Component {
 
     private tileSpriteFrames: Map<TileColor, cc.SpriteFrame> = new Map();
     private _tileNodes: Map<string, cc.Node> = new Map();
+    private _tilesLayer: cc.Node | null = null;
     private _onTileClick: TileClickHandler | null = null;
     private _isAnimating: boolean = false;
 
@@ -69,6 +70,10 @@ export default class BoardView extends cc.Component {
     onLoad() {
         BoardView.createWhiteSpriteFrame();
         this.loadTileSpriteFrames();
+        this._tilesLayer = this.node.getChildByName('tilesLayer');
+        if (!this._tilesLayer) {
+            cc.error('[BoardView] Под boardNode добавьте пустой дочерний узел `tilesLayer` (тайлы создаются только в нём).');
+        }
     }
 
     private loadTileSpriteFrames(): void {
@@ -95,6 +100,9 @@ export default class BoardView extends cc.Component {
     }
 
     render(board: Board): void {
+        if (!this._tilesLayer) {
+            return;
+        }
         this.clearTiles();
 
         const width = board.colCount;
@@ -109,14 +117,14 @@ export default class BoardView extends cc.Component {
                 }
 
                 const tileNode = this.createTileNode(col, row, tile, width, height);
-                this.node.addChild(tileNode);
+                this.getTilesRoot().addChild(tileNode);
                 this.registerTileNode(tileNode, col, row);
             }
         }
     }
 
     playBlast(board: Board, group: BoardCell[], onComplete: BlastCompleteHandler | null): void {
-        if (this._isAnimating || !Board.isBlastableGroup(group)) {
+        if (!this._tilesLayer || this._isAnimating || !Board.isBlastableGroup(group)) {
             return;
         }
 
@@ -277,7 +285,7 @@ export default class BoardView extends cc.Component {
                 const tileNode = this.createTileNode(col, row, tile, width, height);
                 tileNode.setPosition(spawnPos);
                 tileNode.opacity = 255;
-                this.node.addChild(tileNode);
+                this.getTilesRoot().addChild(tileNode);
                 this.registerTileNode(tileNode, col, row);
 
                 cc.tween(tileNode)
@@ -310,7 +318,11 @@ export default class BoardView extends cc.Component {
 
     private clearTiles(): void {
         this._tileNodes.clear();
-        this.node.removeAllChildren();
+        this._tilesLayer?.removeAllChildren();
+    }
+
+    private getTilesRoot(): cc.Node {
+        return this._tilesLayer!;
     }
 
     private cellToLocalPosition(col: number, row: number, width: number, height: number): cc.Vec2 {
