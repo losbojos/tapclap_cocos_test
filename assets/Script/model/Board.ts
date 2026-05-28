@@ -95,8 +95,14 @@ export default class Board {
         return group.length >= GameConfig.MIN_BLAST_GROUP_SIZE;
     }
 
+
+    // debug_counter = 0;
+
     /** Есть ли на поле хотя бы одна группа для сжигания. */
     hasAnyBlastableMove(): boolean {
+
+        // if (++this.debug_counter % 3 !== 0) return false;
+
         for (let col = 0; col < this._colCount; col++) {
             for (let row = 0; row < this._rowCount; row++) {
                 if (Board.isBlastableGroup(this.findGroup(col, row))) {
@@ -105,6 +111,31 @@ export default class Board {
             }
         }
         return false;
+    }
+
+    /** Перемешивает все тайлы на поле без изменения количества/типов тайлов). */
+    shuffleTiles(): void {
+        const flat: Tile[] = [];
+        for (let col = 0; col < this._colCount; col++) {
+            for (let row = 0; row < this._rowCount; row++) {
+                flat.push(this._tiles[col][row]);
+            }
+        }
+
+        // Алгоритм Фишера-Йетса
+        for (let i = flat.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            const temp = flat[i];
+            flat[i] = flat[j];
+            flat[j] = temp;
+        }
+
+        let idx = 0;
+        for (let col = 0; col < this._colCount; col++) {
+            for (let row = 0; row < this._rowCount; row++) {
+                this._tiles[col][row] = flat[idx++];
+            }
+        }
     }
 
     /**

@@ -8,6 +8,7 @@
 import GameConfig from "../GameConfig";
 import Board from "../model/Board";
 import GameState from "../model/GameState";
+import AnimateEffects from "../view/AnimateEffects";
 import BoardView from "../view/BoardView";
 import HudView from "../view/HudView";
 
@@ -19,6 +20,7 @@ export default class GameController extends cc.Component {
     private _board?: Board;
     private _boardView: BoardView | null = null;
     private _hud: HudView | null = null;
+    private _isShuffling: boolean = false;
     private readonly _gameState = new GameState(GameConfig.WIN_SCORE, GameConfig.TOTAL_MOVES);
 
     @property(cc.Node)
@@ -199,7 +201,7 @@ export default class GameController extends cc.Component {
             return;
         }
 
-        if (this._boardView.isAnimating) {
+        if (this._boardView.isAnimating || this._isShuffling) {
             return;
         }
 
@@ -211,25 +213,55 @@ export default class GameController extends cc.Component {
 
         this._boardView.playBlast(this._board, group, (score) => {
             this._gameState.applyMove(score);
-            this.evaluateEndOfGame();
             cc.log(
                 `[GameController] blast done: +${score}, score=${this._gameState.score}, moves=${this._gameState.movesRemaining}`
             );
+            this.evaluateEndOfGame();
         });
     }
 
     private evaluateEndOfGame(): void {
-        if (!this._board) {
+        if (!this._board || !this._boardView) {
             return;
         }
 
-        if (!this._gameState.isGameOver) {
+        if (!this._gameState.isGameOver && !this._isShuffling) {
             if (!this._board.hasAnyBlastableMove()) {
-                this._gameState.setLose("There are no valid moves in the game");
-                cc.log(`[GameController] LOSE: ${this._gameState.getLoseReason()}`);
+                this._isShuffling = true;
+                this.runShuffleAttempt(1);
             }
         }
 
         this.refreshHud();
+    }
+
+    private runShuffleAttempt(attempt: number): void {
+        if (!this._board || !this._boardView) {
+            this._isShuffling = false;
+            return;
+        }
+
+        this._board.shuffleTiles();
+        AnimateEffects.shakeNodeX(this.boardNode, 18, Math.min(0.05, GameConfig.SHUFFLE_STEP_DELAY_SEC / 6));
+        this._boardView.render(this._board);
+        
+        cc.log(`[GameController] Shuffle ${attempt}/${GameConfig.MAX_SHUFFLE_ATTEMPTS}`);
+
+        if (this._board.hasAnyBlastableMove()) {
+            this._isShuffling = false;
+            cc.log(`[GameController] Shuffle complete: valid moves found on attempt ${attempt}.`);
+            this.refreshHud();
+            return;
+        }
+
+        if (attempt >= GameConfig.MAX_SHUFFLE_ATTEMPTS) {
+            this._isShuffling = false;
+            this._gameState.setLose("There are no valid moves in the game");
+            cc.log(`[GameController] LOSE: ${this._gameState.getLoseReason()}`);
+            this.refreshHud();
+            return;
+        }
+
+        this.scheduleOnce(() => this.runShuffleAttempt(attempt + 1), GameConfig.SHUFFLE_STEP_DELAY_SEC);
     }
 }

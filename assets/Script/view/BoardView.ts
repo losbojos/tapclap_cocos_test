@@ -53,7 +53,7 @@ export default class BoardView extends cc.Component {
     @property({ tooltip: 'Длительность прилёта новых тайлов (сек)' })
     refillDuration: number = 0.28;
 
-    private tileSpriteFrames: Map<TileColor, cc.SpriteFrame> = new Map();
+    private _tileSpriteFrames: Map<TileColor, cc.SpriteFrame> = new Map();
     private _tileNodes: Map<string, cc.Node> = new Map();
     private _tilesLayer: cc.Node | null = null;
     private _onTileClick: TileClickHandler | null = null;
@@ -87,7 +87,7 @@ export default class BoardView extends cc.Component {
             const spriteFrame = this.tileAtlas.getSpriteFrame(spriteName);
 
             if (spriteFrame) {
-                this.tileSpriteFrames.set(color as TileColor, spriteFrame);
+                this._tileSpriteFrames.set(color as TileColor, spriteFrame);
                 loadedCount++;
             } else {
                 cc.warn(`[BoardView] ✗ Sprite frame ${spriteName} not found for color ${color}`);
@@ -372,7 +372,7 @@ export default class BoardView extends cc.Component {
         const color: TileColor = tile.color;
         const sprite = tileNode.addComponent(cc.Sprite);
 
-        let spriteFrame: cc.SpriteFrame | null = this.tileSpriteFrames.get(color) || null;
+        let spriteFrame: cc.SpriteFrame | null = this._tileSpriteFrames.get(color) || null;
         if (spriteFrame) {
             sprite.spriteFrame = spriteFrame;
             tileNode.color = cc.Color.WHITE;
