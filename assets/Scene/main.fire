@@ -2394,8 +2394,8 @@
       "width": 1080,
       "height": 1920
     },
-    "_fitWidth": true,
-    "_fitHeight": false,
+    "_fitWidth": false,
+    "_fitHeight": true,
     "_id": "ced/Cgw35NgaOt6ODufjz7"
   },
   {

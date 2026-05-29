@@ -98,6 +98,8 @@ export default class GameController extends cc.Component {
         const screenSize = cc.view.getFrameSize();
         cc.log('screenSize', screenSize);
 
+        /* Здесь нужно дорабатывать поэтому убрал
+
         // Сравниваем соотношения сторон дизайна и экрана устройства
         if (screenSize.width / screenSize.height > designSize.width / designSize.height) {
             // Экран шире -> подгоняем по высоте
@@ -108,6 +110,8 @@ export default class GameController extends cc.Component {
             canvas.fitWidth = true;
             canvas.fitHeight = false;
         }
+        */
+        canvas.fitHeight = true; // Так проще
     }
 
     /** Фон приложения: мобильный / десктопный спрайт по `cc.sys.isMobile` */
