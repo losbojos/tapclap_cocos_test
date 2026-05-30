@@ -7,9 +7,11 @@
 
 import GameConfig from "../GameConfig";
 import Board from "../model/Board";
+import { BoosterType } from "../model/BoosterConfig";
 import GameState from "../model/GameState";
 import AnimateEffects from "../view/AnimateEffects";
 import BoardView from "../view/BoardView";
+import BoostersView from "../view/BoostersView";
 import HudView from "../view/HudView";
 
 const { ccclass, property } = cc._decorator;
@@ -19,15 +21,13 @@ export default class GameController extends cc.Component {
 
     private _board?: Board;
     private _boardView: BoardView | null = null;
-    private _hud: HudView | null = null;
+    private _boostersView: BoostersView | null = null;
+    private _hudView: HudView | null = null;
     private _isShuffling: boolean = false;
     private readonly _gameState = new GameState(GameConfig.WIN_SCORE, GameConfig.TOTAL_MOVES);
 
     @property(cc.Node)
     boardNode: cc.Node | null = null;
-
-    @property(HudView)
-    hud: HudView | null = null;
 
     /** Узел с Sprite на весь экран; если пусто — ищется дочерний `background` у Canvas */
     @property(cc.Node)
@@ -46,8 +46,16 @@ export default class GameController extends cc.Component {
             this._boardView = this.boardNode.getComponent(BoardView);
         }
 
-        this._hud = this.hud; // || this.findHudView();
-        //this.bindHudFromScene();
+        if (!this._hudView) {
+            const headerNode = this.node.getChildByName('hudNode');
+            this._hudView = headerNode ? headerNode.getComponent(HudView) : null;
+        }
+
+        if (!this._boostersView) {
+            const boostersNode = this.node.getChildByName("boostersNode");
+            this._boostersView = boostersNode ? boostersNode.getComponent(BoostersView) : null;
+        }
+
 
         this.autoFitCanvas();
         this.applyAppBackground();
@@ -64,10 +72,16 @@ export default class GameController extends cc.Component {
             return;
         }
 
-        if (!this._hud) {
+        if (!this._hudView) {
             cc.warn('[GameController] HudView not found. Add HudView to header and assign labels.');
         } else {
             this.refreshHud();
+        }
+        
+        if (this._boostersView) {
+            this._boostersView.init((type) => this.onUseBooster(type));
+        } else {
+            cc.warn('[GameController] BoostersView not found. Add BoostersView to boostersNode.');
         }
 
         this._boardView.setOnTileClick((col, row) => this.onTileClicked(col, row));
@@ -93,7 +107,7 @@ export default class GameController extends cc.Component {
             // Экран уже -> подгоняем по ширине
             canvas.fitWidth = true;
             canvas.fitHeight = false;
-        }        
+        }
     }
 
     /** Фон приложения: мобильный / десктопный спрайт по `cc.sys.isMobile` */
@@ -132,67 +146,24 @@ export default class GameController extends cc.Component {
         }
     }
 
-    /*
-    private findHudView(): HudView | null {
-        const header = this.node.getChildByName('header');
-        if (header) {
-            const hudOnHeader = header.getComponent(HudView);
-            if (hudOnHeader) {
-                return hudOnHeader;
-            }
-        }
-
-        return this.getComponent(HudView);
-    }
-
-    private bindHudFromScene(): void {
-        if (!this._hud) {
-            return;
-        }
-
-        const header = this.node.getChildByName('header');
-        if (!header) {
-            return;
-        }
-
-        const content = header.getChildByName('content');
-        if (!content) {
-            return;
-        }
-
-        if (!this._hud.movesLabel) {
-            const movesIndicator = content.getChildByName('movesIndicator');
-            const movesLabelNode = movesIndicator?.getChildByName('movesLabel');
-            const movesLabel = movesLabelNode?.getComponent(cc.Label);
-            if (movesLabel) {
-                this._hud.movesLabel = movesLabel;
-            }
-        }
-
-        const scoreIndicator = content.getChildByName('scoreIndicator');
-        if (!scoreIndicator) {
-            return;
-        }
-
-        if (!this._hud.scoreTitleLabel) {
-            const scoreTitle = scoreIndicator.getChildByName('scoreTitle')?.getComponent(cc.Label);
-            if (scoreTitle) {
-                this._hud.scoreTitleLabel = scoreTitle;
-            }
-        }
-
-        if (!this._hud.scoreValueLabel) {
-            const scoreValue = scoreIndicator.getChildByName('scoreValue')?.getComponent(cc.Label);
-            if (scoreValue) {
-                this._hud.scoreValueLabel = scoreValue;
-            }
-        }
-    }
-    */
 
     private refreshHud(): void {
-        if (this._hud) {
-            this._hud.render(this._gameState);
+        if (this._hudView) {
+            this._hudView.render(this._gameState);
+        }
+    }
+
+    private onUseBooster(type: BoosterType): void {
+        switch (type) {
+            case BoosterType.BOMB:
+                cc.log("[GameController] Booster used: bomb");
+                break;
+            case BoosterType.TELEPORT:
+                cc.log("[GameController] Booster used: teleport");
+                break;
+            default:
+                cc.warn("[GameController] Unknown booster type used.");
+                break;
         }
     }
 
@@ -244,7 +215,7 @@ export default class GameController extends cc.Component {
         this._board.shuffleTiles();
         AnimateEffects.shakeNodeX(this.boardNode, 18, Math.min(0.05, GameConfig.SHUFFLE_STEP_DELAY_SEC / 6));
         this._boardView.render(this._board);
-        
+
         cc.log(`[GameController] Shuffle ${attempt}/${GameConfig.MAX_SHUFFLE_ATTEMPTS}`);
 
         if (this._board.hasAnyBlastableMove()) {
