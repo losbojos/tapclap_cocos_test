@@ -168,38 +168,23 @@ export default class GameController extends cc.Component {
             return false;
         }
 
-        switch (type) {
-            case BoosterType.BOMB:
-                return this.toggleBombBooster();
-            case BoosterType.TELEPORT:
-                return this.toggleTeleportBooster();
-            default:
-                cc.warn("[GameController] Unknown booster type used.");
-                return false;
-        }
-    }
-
-    private toggleBombBooster(): boolean {
-        if (this._pendingBooster === BoosterType.BOMB) {
-            this.setPendingBooster(null);
-            cc.log("[GameController] Bomb targeting cancelled.");
-            return false;
+        if (type === BoosterType.BOMB || type === BoosterType.TELEPORT) {
+            return this.toggleArmedBooster(type);
         }
 
-        this.setPendingBooster(BoosterType.BOMB);
-        cc.log("[GameController] Bomb armed — tap a tile.");
+        cc.warn("[GameController] Unknown booster type used.");
         return false;
     }
 
-    private toggleTeleportBooster(): boolean {
-        if (this._pendingBooster === BoosterType.TELEPORT) {
+    private toggleArmedBooster(type: BoosterType): boolean {
+        if (this._pendingBooster === type) {
             this.setPendingBooster(null);
-            cc.log("[GameController] Teleport cancelled.");
+            cc.log(`[GameController] ${type} cancelled.`);
             return false;
         }
 
-        this.setPendingBooster(BoosterType.TELEPORT);
-        cc.log("[GameController] Teleport armed — drag one tile onto another.");
+        this.setPendingBooster(type);
+        cc.log(`[GameController] ${type} armed.`);
         return false;
     }
 
