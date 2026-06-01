@@ -138,6 +138,23 @@ export default class Board {
         }
     }
 
+    /** Клетки в квадрате с центром (col, row) и радиусом */
+    getCellsInRadius(col: number, row: number, radius: number): BoardCell[] {
+        const cells: BoardCell[] = [];
+
+        for (let dc = -radius; dc <= radius; dc++) {
+            for (let dr = -radius; dr <= radius; dr++) {
+                const nc = col + dc;
+                const nr = row + dr;
+                if (this.isInBounds(nc, nr)) {
+                    cells.push({ col: nc, row: nr });
+                }
+            }
+        }
+
+        return cells;
+    }
+
     /**
      * Сжигает группу, ссыпает тайлы вниз (row 0 — низ поля), заполняет пустоты сверху.
      * @returns очки за ход (0, если группа невалидна)
@@ -147,15 +164,24 @@ export default class Board {
             return 0;
         }
 
+        return this.removeCells(group);
+    }
+
+    /** Убирает произвольный набор клеток (бомба и т.п.). */
+    removeCells(cells: BoardCell[]): number {
+        if (cells.length === 0) {
+            return 0;
+        }
+
         const toRemove = new Set(
-            group.map(cell => Board.cellKey(cell.col, cell.row))
+            cells.map(cell => Board.cellKey(cell.col, cell.row))
         );
 
         for (let col = 0; col < this._colCount; col++) {
             this.compactColumn(col, toRemove);
         }
 
-        return group.length * GameConfig.ONE_TILE_SCORE;
+        return cells.length * GameConfig.ONE_TILE_SCORE;
     }
 
     private compactColumn(col: number, toRemove: Set<string>): void {

@@ -11,6 +11,8 @@ import { BoardCell } from "../model/Board";
 import NormalTile from "../model/NormalTile";
 import { TileColor } from "../model/TileColor";
 import Tile from "../model/Tile";
+import GameConfig from "../GameConfig";
+import AnimateEffects, { BombTileAnimEntry } from "./AnimateEffects";
 
 // Маппинг цветов тайлов на имена спрайтов в атласе
 const TILE_SPRITE_MAP: Record<TileColor, string> = {
@@ -46,6 +48,12 @@ export default class BoardView extends cc.Component {
 
     @property({ tooltip: 'Длительность исчезновения группы (сек)' })
     blastDuration: number = 0.18;
+
+    @property({ tooltip: 'Длительность взрыва бомбы (сек)' })
+    bombBlastDuration: number = 0.62;
+
+    @property({ tooltip: 'Длительность ударной волны бомбы (сек)' })
+    bombShockwaveDuration: number = 0.9;
 
     @property({ tooltip: 'Длительность падения тайлов (сек)' })
     fallDuration: number = 0.22;
@@ -124,7 +132,23 @@ export default class BoardView extends cc.Component {
     }
 
     playBlast(board: Board, group: BoardCell[], onComplete: BlastCompleteHandler | null): void {
-        if (!this._tilesLayer || this._isAnimating || !Board.isBlastableGroup(group)) {
+        if (!Board.isBlastableGroup(group)) {
+            return;
+        }
+
+        this.playRemoveCells(board, group, (cells) => board.blast(cells), onComplete);
+    }
+
+    /** Взрыв бомбы: ударная волна + разлёт тайлов от эпицентра. */
+    playBombBlast(
+        board: Board,
+        cells: BoardCell[],
+        centerCol: number,
+        centerRow: number,
+        applyBoard: (cells: BoardCell[]) => number,
+        onComplete: BlastCompleteHandler | null
+    ): void {
+        if (!this._tilesLayer || this._isAnimating || cells.length === 0) {
             return;
         }
 
@@ -132,17 +156,90 @@ export default class BoardView extends cc.Component {
 
         const colCount = board.colCount;
         const rowCount = board.rowCount;
-        const removeKeys = new Set(group.map(cell => BoardView.cellKey(cell.col, cell.row)));
+        const removeKeys = new Set(cells.map(cell => BoardView.cellKey(cell.col, cell.row)));
+        const centerPos = this.cellToLocalPosition(centerCol, centerRow, colCount, rowCount);
+        const cellStep = this.cellSize + this.padding;
 
         const columnSurvivors = this.collectColumnSurvivors(removeKeys);
-        const blastNodes = group
+        const blastEntries: BombTileAnimEntry[] = [];
+
+        cells.forEach((cell) => {
+            const node = this._tileNodes.get(BoardView.cellKey(cell.col, cell.row));
+            if (!node) {
+                return;
+            }
+
+            const meta = this.getTileNodeMeta(node);
+            const waveDist = Math.max(
+                Math.abs(cell.col - centerCol),
+                Math.abs(cell.row - centerRow)
+            );
+
+            blastEntries.push({
+                node,
+                waveDelaySec: waveDist * 0.028,
+                baseScale: meta?.baseScale ?? node.scale,
+            });
+        });
+
+        removeKeys.forEach(key => this._tileNodes.delete(key));
+
+        const area = this.getBlastArea(cells, colCount, rowCount);
+        if (BoardView.WHITE_SPRITE_FRAME) {
+            AnimateEffects.playBombVfx(
+                this.getTilesRoot(),
+                BoardView.WHITE_SPRITE_FRAME,
+                area.center,
+                area.halfSize,
+                (GameConfig.BOMB_RADIUS + 0.6) * cellStep,
+                this.bombShockwaveDuration
+            );
+        }
+        AnimateEffects.shakeNodeX(this.node, 14, 0.06);
+
+        AnimateEffects.explodeNodesFromCenter(
+            blastEntries,
+            centerPos,
+            this.bombBlastDuration,
+            cellStep * 1.4,
+            () => {
+                const score = applyBoard(cells);
+                this.animateColumnMoves(board, columnSurvivors, colCount, rowCount, () => {
+                    this._isAnimating = false;
+                    if (onComplete) {
+                        onComplete(score);
+                    }
+                });
+            }
+        );
+    }
+
+    /** Сжигание произвольного набора клеток (бомба и т.п.). */
+    playRemoveCells(
+        board: Board,
+        cells: BoardCell[],
+        applyBoard: (cells: BoardCell[]) => number,
+        onComplete: BlastCompleteHandler | null
+    ): void {
+        if (!this._tilesLayer || this._isAnimating || cells.length === 0) {
+            return;
+        }
+
+        this._isAnimating = true;
+
+        const colCount = board.colCount;
+        const rowCount = board.rowCount;
+        const removeKeys = new Set(cells.map(cell => BoardView.cellKey(cell.col, cell.row)));
+
+        const columnSurvivors = this.collectColumnSurvivors(removeKeys);
+        const blastNodes = cells
             .map(cell => this._tileNodes.get(BoardView.cellKey(cell.col, cell.row)))
             .filter((node): node is cc.Node => !!node);
 
         removeKeys.forEach(key => this._tileNodes.delete(key));
 
         this.animateBlastNodes(blastNodes, () => {
-            const score = board.blast(group);
+            const score = applyBoard(cells);
             this.animateColumnMoves(board, columnSurvivors, colCount, rowCount, () => {
                 this._isAnimating = false;
                 if (onComplete) {
@@ -191,6 +288,38 @@ export default class BoardView extends cc.Component {
             if (remaining === 0) {
                 onComplete();
             }
+        };
+    }
+
+    private getBlastArea(
+        cells: BoardCell[],
+        colCount: number,
+        rowCount: number
+    ): { center: cc.Vec2; halfSize: cc.Vec2 } {
+        let minCol = cells[0].col;
+        let maxCol = cells[0].col;
+        let minRow = cells[0].row;
+        let maxRow = cells[0].row;
+
+        cells.forEach((cell) => {
+            minCol = Math.min(minCol, cell.col);
+            maxCol = Math.max(maxCol, cell.col);
+            minRow = Math.min(minRow, cell.row);
+            maxRow = Math.max(maxRow, cell.row);
+        });
+
+        const cellStep = this.cellSize + this.padding;
+        return {
+            center: this.cellToLocalPosition(
+                (minCol + maxCol) / 2,
+                (minRow + maxRow) / 2,
+                colCount,
+                rowCount
+            ),
+            halfSize: cc.v2(
+                ((maxCol - minCol + 1) * cellStep) / 2,
+                ((maxRow - minRow + 1) * cellStep) / 2
+            ),
         };
     }
 

@@ -54,7 +54,7 @@ export default class BoostersView extends cc.Component {
     /**
      * Инициализация отображения бустеров по конфигурации.
      */
-    init(onUseBooster: (type: BoosterType) => void): void {
+    init(onUseBooster: (type: BoosterType) => boolean): void {
         this._configs = BOOSTERS_CONFIG.map((baseCfg) => ({
             ...baseCfg,
             icon: this.getIconByType(baseCfg.type),
@@ -135,9 +135,22 @@ export default class BoostersView extends cc.Component {
             return;
         }
 
+        if (!state.config.onUse()) {
+            return;
+        }
+
+        this.consumeBooster(type);
+    }
+
+    /** Списать один заряд (после успешного применения бомбы по клетке и т.п.). */
+    consumeBooster(type: BoosterType): void {
+        const state = this._boosterStates.get(type);
+        if (!state || state.count <= 0) {
+            return;
+        }
+
         state.count -= 1;
         this.refreshBoosterView(type);
-        state.config.onUse();
     }
 
     private refreshBoosterView(type: BoosterType): void {

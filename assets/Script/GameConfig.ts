@@ -7,6 +7,6 @@ export default class GameConfig {
     static readonly TOTAL_MOVES = 25;   // Лимит ходов до поражения
     static readonly MAX_SHUFFLE_ATTEMPTS = 3; // Попыток перемешать при отсутствии ходов; затем поражение
     static readonly SHUFFLE_STEP_DELAY_SEC = 0.35; // Пауза между встряхиваниями
-    static readonly BOMB_RADIUS = 4;    // Радиус сжигания бомбы
+    static readonly BOMB_RADIUS = 2;    // Радиус сжигания бомбы
     static readonly SUPER_TILE_THRESHOLD = 5; // Размер группы >= N — появляется супер-тайл
 }

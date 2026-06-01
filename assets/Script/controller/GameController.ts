@@ -24,6 +24,7 @@ export default class GameController extends cc.Component {
     private _boostersView: BoostersView | null = null;
     private _hudView: HudView | null = null;
     private _isShuffling: boolean = false;
+    private _pendingBooster: BoosterType | null = null;
     private readonly _gameState = new GameState(GameConfig.WIN_SCORE, GameConfig.TOTAL_MOVES);
 
     @property(cc.Node)
@@ -157,18 +158,37 @@ export default class GameController extends cc.Component {
         }
     }
 
-    private onUseBooster(type: BoosterType): void {
+    private onUseBooster(type: BoosterType): boolean {
+        if (!this._board || !this._boardView || !this._gameState.isPlaying) {
+            return false;
+        }
+
+        if (this._boardView.isAnimating || this._isShuffling) {
+            return false;
+        }
+
         switch (type) {
             case BoosterType.BOMB:
-                cc.log("[GameController] Booster used: bomb");
-                break;
+                return this.toggleBombBooster();
             case BoosterType.TELEPORT:
-                cc.log("[GameController] Booster used: teleport");
-                break;
+                cc.log("[GameController] Booster used: teleport (not implemented)");
+                return true;
             default:
                 cc.warn("[GameController] Unknown booster type used.");
-                break;
+                return false;
         }
+    }
+
+    private toggleBombBooster(): boolean {
+        if (this._pendingBooster === BoosterType.BOMB) {
+            this._pendingBooster = null;
+            cc.log("[GameController] Bomb targeting cancelled.");
+            return false;
+        }
+
+        this._pendingBooster = BoosterType.BOMB;
+        cc.log("[GameController] Bomb armed — tap a tile.");
+        return false;
     }
 
     private onTileClicked(col: number, row: number): void {
@@ -180,6 +200,11 @@ export default class GameController extends cc.Component {
             return;
         }
 
+        if (this._pendingBooster === BoosterType.BOMB) {
+            this.applyBombAt(col, row);
+            return;
+        }
+
         const group = this._board.findGroup(col, row);
         if (!Board.isBlastableGroup(group)) {
             cc.log(`[GameController] click (${col}, ${row}): group too small (${group.length})`);
@@ -187,12 +212,37 @@ export default class GameController extends cc.Component {
         }
 
         this._boardView.playBlast(this._board, group, (score) => {
-            this._gameState.applyMove(score);
-            cc.log(
-                `[GameController] blast done: +${score}, score=${this._gameState.score}, moves=${this._gameState.movesRemaining}`
-            );
-            this.evaluateEndOfGame();
+            this.onMoveFinished(score, "blast");
         });
+    }
+
+    private applyBombAt(col: number, row: number): void {
+        if (!this._board || !this._boardView) {
+            return;
+        }
+
+        const cells = this._board.getCellsInRadius(col, row, GameConfig.BOMB_RADIUS);
+        this._pendingBooster = null;
+
+        this._boardView.playBombBlast(
+            this._board,
+            cells,
+            col,
+            row,
+            (area) => this._board!.removeCells(area),
+            (score) => {
+                this._boostersView?.consumeBooster(BoosterType.BOMB);
+                this.onMoveFinished(score, "bomb");
+            }
+        );
+    }
+
+    private onMoveFinished(score: number, source: string): void {
+        this._gameState.applyMove(score);
+        cc.log(
+            `[GameController] ${source} done: +${score}, score=${this._gameState.score}, moves=${this._gameState.movesRemaining}`
+        );
+        this.evaluateEndOfGame();
     }
 
     private evaluateEndOfGame(): void {

@@ -3,7 +3,8 @@ export enum BoosterType {
     TELEPORT = "teleport",
 }
 
-export type BoosterUseHandler = () => void;
+/** false — бустер не списан (например, бомба только взведена). */
+export type BoosterUseHandler = () => boolean;
 
 export interface BoosterBaseConfig {
     type: BoosterType;
