@@ -39,6 +39,14 @@ export default class GameController extends cc.Component {
     @property(cc.SpriteFrame)
     appBgDesktop: cc.SpriteFrame | null = null;
 
+    /** GameState создаётся в start(); до этого обращение бросает ошибку. */
+    private get gameState(): GameState {
+        if (!this._gameState) {
+            throw new Error("[GameController] GameState is not initialized.");
+        }
+        return this._gameState;
+    }
+
     onLoad() {
         cc.log('[GameController] ready');
 
@@ -156,13 +164,15 @@ export default class GameController extends cc.Component {
 
 
     private refreshHud(): void {
-        if (this._hudView) {
-            this._hudView.render(this._gameState);
+        if (!this._hudView) {
+            return;
         }
+
+        this._hudView.render(this.gameState);
     }
 
     private onUseBooster(type: BoosterType): boolean {
-        if (!this._board || !this._boardView || !this._gameState.isPlaying) {
+        if (!this._board || !this._boardView || !this.gameState.isPlaying) {
             return false;
         }
 
@@ -179,17 +189,13 @@ export default class GameController extends cc.Component {
     }
 
     private toggleArmedBooster(type: BoosterType): boolean {
-        if (!this._gameState) {
-            return false;
-        }
-
-        const wasArmed = this._gameState.isArmed(type);
-        this._gameState.toggleBooster(type);
+        const wasArmed = this.gameState.isArmed(type);
+        this.gameState.toggleBooster(type);
         this.syncArmedBoosterToView();
 
         if (wasArmed) {
             cc.log(`[GameController] ${type} cancelled.`);
-        } else if (this._gameState.isArmed(type)) {
+        } else if (this.gameState.isArmed(type)) {
             cc.log(`[GameController] ${type} armed.`);
         }
 
@@ -197,17 +203,17 @@ export default class GameController extends cc.Component {
     }
 
     private refreshBoostersUi(): void {
-        if (!this._boostersView || !this._gameState) {
+        if (!this._boostersView) {
             return;
         }
 
-        this._boostersView.render(this._gameState.boosters, this._gameState.armedBooster);
+        this._boostersView.render(this.gameState.boosters, this.gameState.armedBooster);
     }
 
     private syncArmedBoosterToView(): void {
         this.refreshBoostersUi();
 
-        const armed = this._gameState?.armedBooster ?? null;
+        const armed = this.gameState.armedBooster;
         this._boardView?.setTeleportMode(
             armed === BoosterType.TELEPORT,
             armed === BoosterType.TELEPORT
@@ -217,12 +223,12 @@ export default class GameController extends cc.Component {
     }
 
     private disarmBooster(): void {
-        this._gameState?.disarm();
+        this.gameState.disarm();
         this.syncArmedBoosterToView();
     }
 
     private onTileClicked(col: number, row: number): void {
-        if (!this._board || !this._boardView || !this._gameState.isPlaying) {
+        if (!this._board || !this._boardView || !this.gameState.isPlaying) {
             return;
         }
 
@@ -230,7 +236,7 @@ export default class GameController extends cc.Component {
             return;
         }
 
-        if (this._gameState?.isArmed(BoosterType.BOMB)) {
+        if (this.gameState.isArmed(BoosterType.BOMB)) {
             this.applyBombAt(col, row);
             return;
         }
@@ -261,7 +267,7 @@ export default class GameController extends cc.Component {
             row,
             (area) => this._board!.removeCells(area),
             (score) => {
-                this._gameState.boosters.consume(BoosterType.BOMB);
+                this.gameState.boosters.consume(BoosterType.BOMB);
                 this.refreshBoostersUi();
                 this.onBoosterFinished(score, "bomb");
             }
@@ -269,11 +275,11 @@ export default class GameController extends cc.Component {
     }
 
     private applyTeleportSwap(fromCol: number, fromRow: number, toCol: number, toRow: number): void {
-        if (!this._board || !this._boardView || !this._gameState.isPlaying) {
+        if (!this._board || !this._boardView || !this.gameState.isPlaying) {
             return;
         }
 
-        if (this._boardView.isAnimating || this._isShuffling || !this._gameState?.isArmed(BoosterType.TELEPORT)) {
+        if (this._boardView.isAnimating || this._isShuffling || !this.gameState.isArmed(BoosterType.TELEPORT)) {
             return;
         }
 
@@ -283,24 +289,24 @@ export default class GameController extends cc.Component {
         }
 
         this.disarmBooster();
-        this._gameState.boosters.consume(BoosterType.TELEPORT);
+        this.gameState.boosters.consume(BoosterType.TELEPORT);
         this.refreshBoostersUi();
         this._boardView.render(this._board);
         this.onBoosterFinished(0, "teleport");
     }
 
     private onMoveFinished(score: number, source: string): void {
-        this._gameState.applyMove(score);
+        this.gameState.applyMove(score);
         cc.log(
-            `[GameController] ${source} done: +${score}, score=${this._gameState.score}, moves=${this._gameState.movesRemaining}`
+            `[GameController] ${source} done: +${score}, score=${this.gameState.score}, moves=${this.gameState.movesRemaining}`
         );
         this.evaluateEndOfGame();
     }
 
     private onBoosterFinished(score: number, source: string): void {
-        this._gameState.applyBooster(score);
+        this.gameState.applyBooster(score);
         cc.log(
-            `[GameController] ${source} done: +${score}, score=${this._gameState.score}, moves=${this._gameState.movesRemaining} (no move spent)`
+            `[GameController] ${source} done: +${score}, score=${this.gameState.score}, moves=${this.gameState.movesRemaining} (no move spent)`
         );
         this.evaluateEndOfGame();
     }
@@ -310,7 +316,7 @@ export default class GameController extends cc.Component {
             return;
         }
 
-        if (!this._gameState.isGameOver && !this._isShuffling) {
+        if (!this.gameState.isGameOver && !this._isShuffling) {
             if (!this._board.hasAnyBlastableMove()) {
                 this._isShuffling = true;
                 this.runShuffleAttempt(1);
@@ -341,8 +347,8 @@ export default class GameController extends cc.Component {
 
         if (attempt >= GameConfig.MAX_SHUFFLE_ATTEMPTS) {
             this._isShuffling = false;
-            this._gameState.setLose("There are no valid moves in the game");
-            cc.log(`[GameController] LOSE: ${this._gameState.getLoseReason()}`);
+            this.gameState.setLose("There are no valid moves in the game");
+            cc.log(`[GameController] LOSE: ${this.gameState.getLoseReason()}`);
             this.refreshHud();
             return;
         }
