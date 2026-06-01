@@ -255,7 +255,7 @@ export default class GameController extends cc.Component {
             (score) => {
                 this._session?.boosters.consume(BoosterType.BOMB);
                 this.refreshBoostersUi();
-                this.onMoveFinished(score, "bomb");
+                this.onBoosterFinished(score, "bomb");
             }
         );
     }
@@ -278,13 +278,21 @@ export default class GameController extends cc.Component {
         this._session?.boosters.consume(BoosterType.TELEPORT);
         this.refreshBoostersUi();
         this._boardView.render(this._board);
-        this.onMoveFinished(0, "teleport");
+        this.onBoosterFinished(0, "teleport");
     }
 
     private onMoveFinished(score: number, source: string): void {
         this._gameState.applyMove(score);
         cc.log(
             `[GameController] ${source} done: +${score}, score=${this._gameState.score}, moves=${this._gameState.movesRemaining}`
+        );
+        this.evaluateEndOfGame();
+    }
+
+    private onBoosterFinished(score: number, source: string): void {
+        this._gameState.applyBooster(score);
+        cc.log(
+            `[GameController] ${source} done: +${score}, score=${this._gameState.score}, moves=${this._gameState.movesRemaining} (no move spent)`
         );
         this.evaluateEndOfGame();
     }

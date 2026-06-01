@@ -44,6 +44,7 @@ export default class GameState {
         return this._status === GameStatus.Playing;
     }
 
+    /** Ход с доски: очки + списание одного хода. */
     applyMove(points: number): GameStatus {
         if (!this.isPlaying) {
             throw new Error("Invalid move after game is over");
@@ -53,16 +54,32 @@ export default class GameState {
             throw new Error("No moves remaining");
         }
 
-        this._score += points;
+        this.addScore(points);
         this._movesRemaining--;
 
-        if (this._score >= this._goal) {
-            this._status = GameStatus.Won;
-        } else if (this._movesRemaining <= 0) {
+        if (this._movesRemaining <= 0 && this.isPlaying) {
             this.setLose("No moves remaining");
         }
 
         return this._status;
+    }
+
+    /** Успешный бустер: очки (если есть), ход не тратится. */
+    applyBooster(points: number): GameStatus {
+        if (!this.isPlaying) {
+            throw new Error("Invalid booster after game is over");
+        }
+
+        this.addScore(points);
+        return this._status;
+    }
+
+    private addScore(points: number): void {
+        this._score += points;
+
+        if (this._score >= this._goal) {
+            this._status = GameStatus.Won;
+        }
     }
 
     get isGameOver(): boolean {
