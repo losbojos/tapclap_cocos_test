@@ -8,7 +8,6 @@
 import GameConfig from "../GameConfig";
 import Board from "../model/Board";
 import { BoosterType } from "../model/BoosterConfig";
-import GameSession from "../model/GameSession";
 import GameState from "../model/GameState";
 import AnimateEffects from "../view/AnimateEffects";
 import BoardView from "../view/BoardView";
@@ -26,8 +25,7 @@ export default class GameController extends cc.Component {
     private _hudView: HudView | null = null;
     private _isShuffling: boolean = false;
     private _pendingBooster: BoosterType | null = null;
-    private readonly _gameState = new GameState(GameConfig.WIN_SCORE, GameConfig.TOTAL_MOVES);
-    private _session?: GameSession;
+    private _gameState: GameState | null = null;
 
     @property(cc.Node)
     boardNode: cc.Node | null = null;
@@ -69,10 +67,9 @@ export default class GameController extends cc.Component {
         //this.applyAppBackground();
         this._board = new Board(GameConfig.COLS, GameConfig.ROWS);
         cc.log('[GameController] Board created:', this._board.toString());
-        
-        this._session = new GameSession();
-        
-        
+
+        this._gameState = new GameState(GameConfig.WIN_SCORE, GameConfig.TOTAL_MOVES);
+
         if (!this._boardView) {
             cc.error('[GameController] BoardView not found. Add BoardView to boardNode, assign in Inspector, save scene.');
             return;
@@ -195,11 +192,11 @@ export default class GameController extends cc.Component {
     }
 
     private refreshBoostersUi(): void {
-        if (!this._boostersView || !this._session) {
+        if (!this._boostersView) {
             return;
         }
 
-        this._boostersView.render(this._session.boosters, this._pendingBooster);
+        this._boostersView.render(this._gameState.boosters, this._pendingBooster);
     }
 
     private setPendingBooster(type: BoosterType | null): void {
@@ -253,7 +250,7 @@ export default class GameController extends cc.Component {
             row,
             (area) => this._board!.removeCells(area),
             (score) => {
-                this._session?.boosters.consume(BoosterType.BOMB);
+                this._gameState.boosters.consume(BoosterType.BOMB);
                 this.refreshBoostersUi();
                 this.onBoosterFinished(score, "bomb");
             }
@@ -275,7 +272,7 @@ export default class GameController extends cc.Component {
         }
 
         this.setPendingBooster(null);
-        this._session?.boosters.consume(BoosterType.TELEPORT);
+        this._gameState.boosters.consume(BoosterType.TELEPORT);
         this.refreshBoostersUi();
         this._boardView.render(this._board);
         this.onBoosterFinished(0, "teleport");

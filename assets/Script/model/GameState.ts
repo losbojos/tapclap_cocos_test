@@ -1,9 +1,13 @@
 import GameConfig from "../GameConfig";
+import BoosterInventory from "./BoosterInventory";
 import { GameStatus } from "./GameStatus";
 
+
+/** Состояние текущей игры (сессии). */
 export default class GameState {
     private readonly _goal: number; 
     private readonly _movesLimit: number;
+    private readonly _boosters = new BoosterInventory();
 
     private _score: number = 0;
     private _movesRemaining: number = GameConfig.TOTAL_MOVES;
@@ -42,6 +46,10 @@ export default class GameState {
 
     get isPlaying(): boolean {
         return this._status === GameStatus.Playing;
+    }
+
+    get boosters(): BoosterInventory {
+        return this._boosters;
     }
 
     /** Ход с доски: очки + списание одного хода. */
