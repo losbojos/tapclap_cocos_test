@@ -184,6 +184,28 @@ export default class Board {
         return cells.length * GameConfig.ONE_TILE_SCORE;
     }
 
+    /** Меняет местами два тайла. false — если клетки совпадают или тайлы эквивалентны. */
+    swapTiles(aCol: number, aRow: number, bCol: number, bRow: number): boolean {
+        if (!this.isInBounds(aCol, aRow) || !this.isInBounds(bCol, bRow)) {
+            return false;
+        }
+
+        if (aCol === bCol && aRow === bRow) {
+            return false;
+        }
+
+        const tileA = this._tiles[aCol][aRow];
+        const tileB = this._tiles[bCol][bRow];
+        if (tileA.isEqual(tileB)) {
+            return false;
+        }
+
+        const temp = this._tiles[aCol][aRow];
+        this._tiles[aCol][aRow] = this._tiles[bCol][bRow];
+        this._tiles[bCol][bRow] = temp;
+        return true;
+    }
+
     private compactColumn(col: number, toRemove: Set<string>): void {
         const remaining: Tile[] = [];
 

@@ -24,6 +24,7 @@ const TILE_SPRITE_MAP: Record<TileColor, string> = {
 };
 
 export type TileClickHandler = (col: number, row: number) => void;
+export type TileTeleportHandler = (fromCol: number, fromRow: number, toCol: number, toRow: number) => void;
 type BlastCompleteHandler = (score: number) => void;
 
 interface TileNodeMeta {
@@ -65,7 +66,12 @@ export default class BoardView extends cc.Component {
     private _tileNodes: Map<string, cc.Node> = new Map();
     private _tilesLayer: cc.Node | null = null;
     private _onTileClick: TileClickHandler | null = null;
+    private _onTileTeleport: TileTeleportHandler | null = null;
+    private _isTeleportMode: boolean = false;
     private _isAnimating: boolean = false;
+    private _dragSourceMeta: TileNodeMeta | null = null;
+    private _dragSourceNode: cc.Node | null = null;
+    private _dragGhostNode: cc.Node | null = null;
 
     get isAnimating(): boolean {
         return this._isAnimating;
@@ -73,6 +79,14 @@ export default class BoardView extends cc.Component {
 
     setOnTileClick(handler: TileClickHandler | null): void {
         this._onTileClick = handler;
+    }
+
+    setTeleportMode(enabled: boolean, handler: TileTeleportHandler | null): void {
+        this._isTeleportMode = enabled;
+        this._onTileTeleport = handler;
+        if (!enabled) {
+            this.cancelTeleportDrag();
+        }
     }
 
     onLoad() {
@@ -531,8 +545,37 @@ export default class BoardView extends cc.Component {
     }
 
     private bindTileTouch(tileNode: cc.Node): void {
+        tileNode.on(cc.Node.EventType.TOUCH_START, (event: cc.Event.EventTouch) => {
+            event.stopPropagation();
+            if (!this._isTeleportMode || this._isAnimating || !this._onTileTeleport) {
+                return;
+            }
+
+            const meta = this.getTileNodeMeta(tileNode);
+            if (!meta) {
+                return;
+            }
+
+            this.beginTeleportDrag(tileNode, meta, event);
+        });
+
+        tileNode.on(cc.Node.EventType.TOUCH_MOVE, (event: cc.Event.EventTouch) => {
+            event.stopPropagation();
+            if (!this._isTeleportMode || !this._dragGhostNode) {
+                return;
+            }
+
+            const local = this.node.convertToNodeSpaceAR(event.getLocation());
+            this._dragGhostNode.setPosition(local);
+        });
+
         tileNode.on(cc.Node.EventType.TOUCH_END, (event: cc.Event.EventTouch) => {
             event.stopPropagation();
+            if (this._isTeleportMode) {
+                this.finishTeleportDrag(event);
+                return;
+            }
+
             if (this._isAnimating || !this._onTileClick) {
                 return;
             }
@@ -542,5 +585,80 @@ export default class BoardView extends cc.Component {
                 this._onTileClick(meta.col, meta.row);
             }
         });
+
+        tileNode.on(cc.Node.EventType.TOUCH_CANCEL, (event: cc.Event.EventTouch) => {
+            event.stopPropagation();
+            if (!this._isTeleportMode) {
+                return;
+            }
+            this.finishTeleportDrag(event);
+        });
+    }
+
+    private beginTeleportDrag(tileNode: cc.Node, meta: TileNodeMeta, event: cc.Event.EventTouch): void {
+        this.cancelTeleportDrag();
+        this._dragSourceMeta = { ...meta };
+        this._dragSourceNode = tileNode;
+        this._dragSourceNode.opacity = 90;
+
+        const tileSprite = tileNode.getComponent(cc.Sprite);
+        if (!tileSprite || !tileSprite.spriteFrame) {
+            return;
+        }
+
+        const ghost = new cc.Node("teleport_drag_ghost");
+        const ghostSprite = ghost.addComponent(cc.Sprite);
+        ghostSprite.spriteFrame = tileSprite.spriteFrame;
+        ghost.setContentSize(tileNode.getContentSize());
+        ghost.color = tileNode.color;
+        ghost.opacity = 220;
+        ghost.scale = tileNode.scale * 1.07;
+        ghost.zIndex = 3000;
+
+        const local = this.node.convertToNodeSpaceAR(event.getLocation());
+        ghost.setPosition(local);
+        this.node.addChild(ghost);
+        this._dragGhostNode = ghost;
+    }
+
+    private finishTeleportDrag(event: cc.Event.EventTouch): void {
+        const source = this._dragSourceMeta;
+        if (!source || !this._onTileTeleport) {
+            this.cancelTeleportDrag();
+            return;
+        }
+
+        const target = this.findTileMetaByWorldPoint(event.getLocation());
+        if (target && (target.col !== source.col || target.row !== source.row)) {
+            this._onTileTeleport(source.col, source.row, target.col, target.row);
+        }
+
+        this.cancelTeleportDrag();
+    }
+
+    private cancelTeleportDrag(): void {
+        if (this._dragSourceNode) {
+            this._dragSourceNode.opacity = 255;
+        }
+        if (this._dragGhostNode) {
+            this._dragGhostNode.destroy();
+        }
+        this._dragSourceNode = null;
+        this._dragSourceMeta = null;
+        this._dragGhostNode = null;
+    }
+
+    private findTileMetaByWorldPoint(worldPoint: cc.Vec2): TileNodeMeta | null {
+        let result: TileNodeMeta | null = null;
+        this._tileNodes.forEach((tileNode) => {
+            if (result || !tileNode.isValid) {
+                return;
+            }
+            const box = tileNode.getBoundingBoxToWorld();
+            if (box.contains(worldPoint)) {
+                result = this.getTileNodeMeta(tileNode);
+            }
+        });
+        return result;
     }
 }

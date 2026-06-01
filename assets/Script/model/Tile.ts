@@ -7,7 +7,12 @@ export default class Tile {
         this._type = type;
     }
 
-    get type(): TileType { return this._type; } 
+    get type(): TileType { return this._type; }
+
+    /** Эквивалентны ли два тайла? Совпадает ли тип и значимые свойства. */
+    isEqual(other: Tile): boolean {
+        return this.type === other.type;
+    }
 
     toString(): string {
         return `[TileData type=${this.type}]`;

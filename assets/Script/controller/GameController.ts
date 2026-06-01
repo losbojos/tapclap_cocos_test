@@ -86,6 +86,7 @@ export default class GameController extends cc.Component {
         }
 
         this._boardView.setOnTileClick((col, row) => this.onTileClicked(col, row));
+        this._boardView.setTeleportMode(false, null);
         this._boardView.render(this._board);
         this.evaluateEndOfGame();
     }
@@ -171,8 +172,7 @@ export default class GameController extends cc.Component {
             case BoosterType.BOMB:
                 return this.toggleBombBooster();
             case BoosterType.TELEPORT:
-                cc.log("[GameController] Booster used: teleport (not implemented)");
-                return true;
+                return this.toggleTeleportBooster();
             default:
                 cc.warn("[GameController] Unknown booster type used.");
                 return false;
@@ -181,14 +181,36 @@ export default class GameController extends cc.Component {
 
     private toggleBombBooster(): boolean {
         if (this._pendingBooster === BoosterType.BOMB) {
-            this._pendingBooster = null;
+            this.setPendingBooster(null);
             cc.log("[GameController] Bomb targeting cancelled.");
             return false;
         }
 
-        this._pendingBooster = BoosterType.BOMB;
+        this.setPendingBooster(BoosterType.BOMB);
         cc.log("[GameController] Bomb armed — tap a tile.");
         return false;
+    }
+
+    private toggleTeleportBooster(): boolean {
+        if (this._pendingBooster === BoosterType.TELEPORT) {
+            this.setPendingBooster(null);
+            cc.log("[GameController] Teleport cancelled.");
+            return false;
+        }
+
+        this.setPendingBooster(BoosterType.TELEPORT);
+        cc.log("[GameController] Teleport armed — drag one tile onto another.");
+        return false;
+    }
+
+    private setPendingBooster(type: BoosterType | null): void {
+        this._pendingBooster = type;
+        this._boardView?.setTeleportMode(
+            type === BoosterType.TELEPORT,
+            type === BoosterType.TELEPORT
+                ? (fromCol, fromRow, toCol, toRow) => this.applyTeleportSwap(fromCol, fromRow, toCol, toRow)
+                : null
+        );
     }
 
     private onTileClicked(col: number, row: number): void {
@@ -222,7 +244,7 @@ export default class GameController extends cc.Component {
         }
 
         const cells = this._board.getCellsInRadius(col, row, GameConfig.BOMB_RADIUS);
-        this._pendingBooster = null;
+        this.setPendingBooster(null);
 
         this._boardView.playBombBlast(
             this._board,
@@ -235,6 +257,26 @@ export default class GameController extends cc.Component {
                 this.onMoveFinished(score, "bomb");
             }
         );
+    }
+
+    private applyTeleportSwap(fromCol: number, fromRow: number, toCol: number, toRow: number): void {
+        if (!this._board || !this._boardView || !this._gameState.isPlaying) {
+            return;
+        }
+
+        if (this._boardView.isAnimating || this._isShuffling || this._pendingBooster !== BoosterType.TELEPORT) {
+            return;
+        }
+
+        const swapped = this._board.swapTiles(fromCol, fromRow, toCol, toRow);
+        if (!swapped) {
+            return;
+        }
+
+        this.setPendingBooster(null);
+        this._boostersView?.consumeBooster(BoosterType.TELEPORT);
+        this._boardView.render(this._board);
+        this.onMoveFinished(0, "teleport");
     }
 
     private onMoveFinished(score: number, source: string): void {
