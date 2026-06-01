@@ -1,6 +1,6 @@
 const { ccclass, property } = cc._decorator;
 import GameConfig from "../GameConfig";
-import GameState from "../model/GameState";
+import GameSession from "../model/GameSession";
 import { GameStatus } from "../model/GameStatus";
 
 @ccclass
@@ -15,21 +15,21 @@ export default class HudView extends cc.Component {
     @property(cc.Label)
     scoreValueLabel: cc.Label | null = null;
 
-    render(state: GameState): void {
-        if (state.status === GameStatus.Won) {
+    render(session: GameSession): void {
+        if (session.status === GameStatus.Won) {
             this.setMoves("");
-            this.setScore("ПОБЕДА!", `${state.score}`);
+            this.setScore("ПОБЕДА!", `${session.score}`);
             return;
         }
 
-        if (state.status === GameStatus.Lost) {
+        if (session.status === GameStatus.Lost) {
             this.setMoves("");
-            this.setScore("ПОРАЖЕНИЕ", `${state.score}`);
+            this.setScore("ПОРАЖЕНИЕ", `${session.score}`);
             return;
         }
 
-        this.setMoves(`${state.movesRemaining}`);
-        this.setScore("ОЧКИ:", `${state.score}/${GameConfig.WIN_SCORE}`);
+        this.setMoves(`${session.movesRemaining}`);
+        this.setScore("ОЧКИ:", `${session.score}/${GameConfig.WIN_SCORE}`);
     }
 
     private setMoves(text: string): void {

@@ -3,10 +3,9 @@ import { BoosterType } from "./BoosterConfig";
 import BoosterInventory from "./BoosterInventory";
 import { GameStatus } from "./GameStatus";
 
-
-/** Состояние текущей игры (сессии). */
-export default class GameState {
-    private readonly _goal: number; 
+/** Состояние текущей партии: счёт, ходы, бустеры, взведение. */
+export default class GameSession {
+    private readonly _goal: number;
     private readonly _movesLimit: number;
     private readonly _boosters = new BoosterInventory();
 
