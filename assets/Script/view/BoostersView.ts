@@ -5,9 +5,9 @@ import {
     BoosterViewConfig,
     BOOSTERS_CONFIG,
 } from "../model/BoosterConfig";
+import BoosterInventory from "../model/BoosterInventory";
 
 type BoosterUiState = {
-    count: number;
     label: cc.Label;
     button: cc.Button;
     itemNode: cc.Node;
@@ -54,17 +54,35 @@ export default class BoostersView extends cc.Component {
         }
     }
 
-    /**
-     * Инициализация отображения бустеров по конфигурации.
-     */
     init(onUseBooster: (type: BoosterType) => boolean): void {
         this._configs = BOOSTERS_CONFIG.map((baseCfg) => ({
-            ...baseCfg,
+            type: baseCfg.type,
             icon: this.getIconByType(baseCfg.type),
             onUse: () => onUseBooster(baseCfg.type),
         }));
 
         this.renderBoosterButtons();
+    }
+
+    /** Обновить цифры и подсветку из model (как HudView.render). */
+    render(inventory: BoosterInventory, armedBooster: BoosterType | null): void {
+        if (this._boosterStates.size === 0) {
+            return;
+        }
+
+        if (armedBooster === null) {
+            this._boosterStates.forEach((_, boosterType) => {
+                this.refreshBoosterView(boosterType, inventory.getCount(boosterType), false);
+            });
+            return;
+        }
+
+        this._boosterStates.forEach((_, boosterType) => {
+            if (boosterType !== armedBooster) {
+                this.refreshBoosterView(boosterType, inventory.getCount(boosterType), false);
+            }
+        });
+        this.refreshBoosterView(armedBooster, inventory.getCount(armedBooster), true);
     }
 
     private renderBoosterButtons(): void {
@@ -100,13 +118,11 @@ export default class BoostersView extends cc.Component {
                 return;
             }
 
-            // Масштаб и подсветку ведём сами — иначе Button.zoom конфликтует с tween.
             button.transition = cc.Button.Transition.COLOR;
             button.duration = 0.08;
             button.zoomScale = 1;
 
             this._boosterStates.set(cfg.type, {
-                count: cfg.initialCount,
                 label: countLabel,
                 button,
                 itemNode,
@@ -115,14 +131,11 @@ export default class BoostersView extends cc.Component {
                 config: cfg,
             });
 
-            this.refreshBoosterView(cfg.type, null);
-
             itemNode.on(cc.Node.EventType.TOUCH_END, () => this.tryUseBooster(cfg.type));
             this.boostersContent!.addChild(itemNode);
         });
     }
 
-    /** Удаляет только клоны бустеров, шаблон оставляет. */
     private clearBoosterItems(): void {
         if (!this.boostersContent) {
             return;
@@ -142,55 +155,23 @@ export default class BoostersView extends cc.Component {
 
     private tryUseBooster(type: BoosterType): void {
         const state = this._boosterStates.get(type);
-        if (!state || state.count <= 0) {
+        if (!state || !state.button.interactable) {
             return;
         }
 
-        if (!state.config.onUse()) {
-            return;
-        }
-
-        this.consumeBooster(type);
+        state.config.onUse();
     }
 
-    /** Подсветить бустер, готовый к применению (null — все в обычном виде). */
-    /** Обновить подсветку кнопок; armedBooster приходит из GameController (_pendingBooster). */
-    setActiveBooster(armedBooster: BoosterType | null): void {
-        if (armedBooster === null) {
-            this._boosterStates.forEach((_, boosterType) => this.refreshBoosterView(boosterType, null));
-            return;
-        }
-
-        // Сначала сбрасываем остальные, активный — последним (чтобы не убить его tween).
-        this._boosterStates.forEach((_, boosterType) => {
-            if (boosterType !== armedBooster) {
-                this.refreshBoosterView(boosterType, null);
-            }
-        });
-        this.refreshBoosterView(armedBooster, armedBooster);
-    }
-
-    /** Списать один заряд (после успешного применения бомбы по клетке и т.п.). */
-    consumeBooster(type: BoosterType): void {
-        const state = this._boosterStates.get(type);
-        if (!state || state.count <= 0) {
-            return;
-        }
-
-        state.count -= 1;
-        this.refreshBoosterView(type, null);
-    }
-
-    private refreshBoosterView(type: BoosterType, armedBooster: BoosterType | null): void {
+    private refreshBoosterView(type: BoosterType, count: number, isArmed: boolean): void {
         const state = this._boosterStates.get(type);
         if (!state) {
             return;
         }
 
-        const hasCharges = state.count > 0;
-        const isArmed = armedBooster === type && hasCharges;
+        const hasCharges = count > 0;
+        const showArmed = isArmed && hasCharges;
 
-        state.label.string = `${state.count}`;
+        state.label.string = `${count}`;
         state.button.interactable = hasCharges;
 
         if (!hasCharges) {
@@ -198,7 +179,7 @@ export default class BoostersView extends cc.Component {
             return;
         }
 
-        if (isArmed) {
+        if (showArmed) {
             state.itemNode.opacity = 255;
             state.itemNode.color = cc.color(255, 245, 170);
             this.startBoosterPulse(state);

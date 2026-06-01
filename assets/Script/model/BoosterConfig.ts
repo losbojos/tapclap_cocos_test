@@ -11,7 +11,9 @@ export interface BoosterBaseConfig {
     initialCount: number;
 }
 
-export interface BoosterViewConfig extends BoosterBaseConfig {
+/** Конфиг кнопки бустера во View (без initialCount — заряды в BoosterInventory). */
+export interface BoosterViewConfig {
+    type: BoosterType;
     icon: cc.SpriteFrame | null;
     onUse: BoosterUseHandler;
 }
