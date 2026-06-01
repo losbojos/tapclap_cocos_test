@@ -39,14 +39,6 @@ export default class GameController extends cc.Component {
     @property(cc.SpriteFrame)
     appBgDesktop: cc.SpriteFrame | null = null;
 
-    /** GameSession создаётся в start(); до этого обращение бросает ошибку. */
-    private get session(): GameSession {
-        if (!this._session) {
-            throw new Error("[GameController] GameSession is not initialized.");
-        }
-        return this._session;
-    }
-
     onLoad() {
         cc.log('[GameController] ready');
 
@@ -99,6 +91,29 @@ export default class GameController extends cc.Component {
         this._boardView.setTeleportMode(false, null);
         this._boardView.render(this._board);
         this.evaluateEndOfGame();
+    }
+
+    private get session(): GameSession {
+        if (!this._session) {
+            throw new Error("[GameController] GameSession is not initialized.");
+        }
+        return this._session;
+    }
+
+    private canInteractWithBoard(): boolean {
+        if (!this._board || !this._boardView || !this._session) {
+            return false;
+        }
+
+        if (!this._session.isPlaying) {
+            return false;
+        }
+
+        if (this._boardView.isAnimating || this._isShuffling) {
+            return false;
+        }
+
+        return true;
     }
 
     private autoFitCanvas() {
@@ -172,11 +187,7 @@ export default class GameController extends cc.Component {
     }
 
     private onUseBooster(type: BoosterType): boolean {
-        if (!this._board || !this._boardView || !this.session.isPlaying) {
-            return false;
-        }
-
-        if (this._boardView.isAnimating || this._isShuffling) {
+        if (!this.canInteractWithBoard()) {
             return false;
         }
 
@@ -228,11 +239,7 @@ export default class GameController extends cc.Component {
     }
 
     private onTileClicked(col: number, row: number): void {
-        if (!this._board || !this._boardView || !this.session.isPlaying) {
-            return;
-        }
-
-        if (this._boardView.isAnimating || this._isShuffling) {
+        if (!this.canInteractWithBoard()) {
             return;
         }
 
@@ -275,11 +282,7 @@ export default class GameController extends cc.Component {
     }
 
     private applyTeleportSwap(fromCol: number, fromRow: number, toCol: number, toRow: number): void {
-        if (!this._board || !this._boardView || !this.session.isPlaying) {
-            return;
-        }
-
-        if (this._boardView.isAnimating || this._isShuffling || !this.session.isArmed(BoosterType.TELEPORT)) {
+        if (!this.canInteractWithBoard() || !this.session.isArmed(BoosterType.TELEPORT)) {
             return;
         }
 
