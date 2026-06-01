@@ -205,6 +205,7 @@ export default class GameController extends cc.Component {
 
     private setPendingBooster(type: BoosterType | null): void {
         this._pendingBooster = type;
+        this._boostersView?.setActiveBooster(type);
         this._boardView?.setTeleportMode(
             type === BoosterType.TELEPORT,
             type === BoosterType.TELEPORT

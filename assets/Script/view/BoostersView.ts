@@ -10,6 +10,9 @@ type BoosterUiState = {
     count: number;
     label: cc.Label;
     button: cc.Button;
+    itemNode: cc.Node;
+    baseScaleX: number;
+    baseScaleY: number;
     config: BoosterViewConfig;
 };
 
@@ -97,14 +100,22 @@ export default class BoostersView extends cc.Component {
                 return;
             }
 
+            // Масштаб и подсветку ведём сами — иначе Button.zoom конфликтует с tween.
+            button.transition = cc.Button.Transition.COLOR;
+            button.duration = 0.08;
+            button.zoomScale = 1;
+
             this._boosterStates.set(cfg.type, {
                 count: cfg.initialCount,
                 label: countLabel,
                 button,
+                itemNode,
+                baseScaleX: itemNode.scaleX,
+                baseScaleY: itemNode.scaleY,
                 config: cfg,
             });
 
-            this.refreshBoosterView(cfg.type);
+            this.refreshBoosterView(cfg.type, null);
 
             itemNode.on(cc.Node.EventType.TOUCH_END, () => this.tryUseBooster(cfg.type));
             this.boostersContent!.addChild(itemNode);
@@ -142,6 +153,23 @@ export default class BoostersView extends cc.Component {
         this.consumeBooster(type);
     }
 
+    /** Подсветить бустер, готовый к применению (null — все в обычном виде). */
+    /** Обновить подсветку кнопок; armedBooster приходит из GameController (_pendingBooster). */
+    setActiveBooster(armedBooster: BoosterType | null): void {
+        if (armedBooster === null) {
+            this._boosterStates.forEach((_, boosterType) => this.refreshBoosterView(boosterType, null));
+            return;
+        }
+
+        // Сначала сбрасываем остальные, активный — последним (чтобы не убить его tween).
+        this._boosterStates.forEach((_, boosterType) => {
+            if (boosterType !== armedBooster) {
+                this.refreshBoosterView(boosterType, null);
+            }
+        });
+        this.refreshBoosterView(armedBooster, armedBooster);
+    }
+
     /** Списать один заряд (после успешного применения бомбы по клетке и т.п.). */
     consumeBooster(type: BoosterType): void {
         const state = this._boosterStates.get(type);
@@ -150,17 +178,66 @@ export default class BoostersView extends cc.Component {
         }
 
         state.count -= 1;
-        this.refreshBoosterView(type);
+        this.refreshBoosterView(type, null);
     }
 
-    private refreshBoosterView(type: BoosterType): void {
+    private refreshBoosterView(type: BoosterType, armedBooster: BoosterType | null): void {
         const state = this._boosterStates.get(type);
         if (!state) {
             return;
         }
+
+        const hasCharges = state.count > 0;
+        const isArmed = armedBooster === type && hasCharges;
+
         state.label.string = `${state.count}`;
-        state.button.interactable = state.count > 0;
-        state.button.node.opacity = state.count > 0 ? 255 : 120;
+        state.button.interactable = hasCharges;
+
+        if (!hasCharges) {
+            this.resetBoosterItemVisual(state, 120);
+            return;
+        }
+
+        if (isArmed) {
+            state.itemNode.opacity = 255;
+            state.itemNode.color = cc.color(255, 245, 170);
+            this.startBoosterPulse(state);
+            return;
+        }
+
+        this.resetBoosterItemVisual(state, 255);
+    }
+
+    private resetBoosterItemVisual(state: BoosterUiState, opacity: number): void {
+        this.stopBoosterPulse(state);
+        state.itemNode.opacity = opacity;
+        state.itemNode.color = cc.Color.WHITE;
+    }
+
+    private stopBoosterPulse(state: BoosterUiState): void {
+        cc.Tween.stopAllByTarget(state.itemNode);
+        state.itemNode.setScale(state.baseScaleX, state.baseScaleY);
+    }
+
+    private startBoosterPulse(state: BoosterUiState): void {
+        this.stopBoosterPulse(state);
+
+        const pulseMin = 1.1;
+        const pulseMax = 1.14;
+        state.itemNode.setScale(state.baseScaleX * pulseMin, state.baseScaleY * pulseMin);
+
+        cc.tween(state.itemNode)
+            .to(0.35, {
+                scaleX: state.baseScaleX * pulseMax,
+                scaleY: state.baseScaleY * pulseMax,
+            })
+            .to(0.35, {
+                scaleX: state.baseScaleX * pulseMin,
+                scaleY: state.baseScaleY * pulseMin,
+            })
+            .union()
+            .repeatForever()
+            .start();
     }
 
     private getIconByType(type: BoosterType): cc.SpriteFrame | null {
