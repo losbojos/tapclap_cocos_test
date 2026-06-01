@@ -24,7 +24,6 @@ export default class GameController extends cc.Component {
     private _boostersView: BoostersView | null = null;
     private _hudView: HudView | null = null;
     private _isShuffling: boolean = false;
-    private _pendingBooster: BoosterType | null = null;
     private _gameState: GameState | null = null;
 
     @property(cc.Node)
@@ -180,34 +179,46 @@ export default class GameController extends cc.Component {
     }
 
     private toggleArmedBooster(type: BoosterType): boolean {
-        if (this._pendingBooster === type) {
-            this.setPendingBooster(null);
-            cc.log(`[GameController] ${type} cancelled.`);
+        if (!this._gameState) {
             return false;
         }
 
-        this.setPendingBooster(type);
-        cc.log(`[GameController] ${type} armed.`);
+        const wasArmed = this._gameState.isArmed(type);
+        this._gameState.toggleBooster(type);
+        this.syncArmedBoosterToView();
+
+        if (wasArmed) {
+            cc.log(`[GameController] ${type} cancelled.`);
+        } else if (this._gameState.isArmed(type)) {
+            cc.log(`[GameController] ${type} armed.`);
+        }
+
         return false;
     }
 
     private refreshBoostersUi(): void {
-        if (!this._boostersView) {
+        if (!this._boostersView || !this._gameState) {
             return;
         }
 
-        this._boostersView.render(this._gameState.boosters, this._pendingBooster);
+        this._boostersView.render(this._gameState.boosters, this._gameState.armedBooster);
     }
 
-    private setPendingBooster(type: BoosterType | null): void {
-        this._pendingBooster = type;
+    private syncArmedBoosterToView(): void {
         this.refreshBoostersUi();
+
+        const armed = this._gameState?.armedBooster ?? null;
         this._boardView?.setTeleportMode(
-            type === BoosterType.TELEPORT,
-            type === BoosterType.TELEPORT
+            armed === BoosterType.TELEPORT,
+            armed === BoosterType.TELEPORT
                 ? (fromCol, fromRow, toCol, toRow) => this.applyTeleportSwap(fromCol, fromRow, toCol, toRow)
                 : null
         );
+    }
+
+    private disarmBooster(): void {
+        this._gameState?.disarm();
+        this.syncArmedBoosterToView();
     }
 
     private onTileClicked(col: number, row: number): void {
@@ -219,7 +230,7 @@ export default class GameController extends cc.Component {
             return;
         }
 
-        if (this._pendingBooster === BoosterType.BOMB) {
+        if (this._gameState?.isArmed(BoosterType.BOMB)) {
             this.applyBombAt(col, row);
             return;
         }
@@ -241,7 +252,7 @@ export default class GameController extends cc.Component {
         }
 
         const cells = this._board.getCellsInRadius(col, row, GameConfig.BOMB_RADIUS);
-        this.setPendingBooster(null);
+        this.disarmBooster();
 
         this._boardView.playBombBlast(
             this._board,
@@ -262,7 +273,7 @@ export default class GameController extends cc.Component {
             return;
         }
 
-        if (this._boardView.isAnimating || this._isShuffling || this._pendingBooster !== BoosterType.TELEPORT) {
+        if (this._boardView.isAnimating || this._isShuffling || !this._gameState?.isArmed(BoosterType.TELEPORT)) {
             return;
         }
 
@@ -271,7 +282,7 @@ export default class GameController extends cc.Component {
             return;
         }
 
-        this.setPendingBooster(null);
+        this.disarmBooster();
         this._gameState.boosters.consume(BoosterType.TELEPORT);
         this.refreshBoostersUi();
         this._boardView.render(this._board);

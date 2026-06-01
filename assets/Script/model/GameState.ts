@@ -1,4 +1,5 @@
 import GameConfig from "../GameConfig";
+import { BoosterType } from "./BoosterConfig";
 import BoosterInventory from "./BoosterInventory";
 import { GameStatus } from "./GameStatus";
 
@@ -13,6 +14,7 @@ export default class GameState {
     private _movesRemaining: number = GameConfig.TOTAL_MOVES;
     private _status: GameStatus = GameStatus.Playing;
     private _loseReason: string = "";
+    private _armedBooster: BoosterType | null = null;
 
     constructor(goal: number, movesLimit: number) {
         this._goal = goal;
@@ -52,6 +54,37 @@ export default class GameState {
         return this._boosters;
     }
 
+    get armedBooster(): BoosterType | null {
+        return this._armedBooster;
+    }
+
+    isArmed(type: BoosterType): boolean {
+        return this._armedBooster === type;
+    }
+
+    arm(type: BoosterType): boolean {
+        if (!this._boosters.canUse(type)) {
+            return false;
+        }
+
+        this._armedBooster = type;
+        return true;
+    }
+
+    disarm(): void {
+        this._armedBooster = null;
+    }
+
+    /** Взвести бустер или снять взведение, если уже выбран этот тип. */
+    toggleBooster(type: BoosterType): void {
+        if (this._armedBooster === type) {
+            this.disarm();
+            return;
+        }
+
+        this.arm(type);
+    }
+
     /** Ход с доски: очки + списание одного хода. */
     applyMove(points: number): GameStatus {
         if (!this.isPlaying) {
@@ -87,6 +120,7 @@ export default class GameState {
 
         if (this._score >= this._goal) {
             this._status = GameStatus.Won;
+            this.disarm();
         }
     }
 
@@ -109,6 +143,7 @@ export default class GameState {
 
         this._status = GameStatus.Lost;
         this._loseReason = reason;
+        this.disarm();
     }
 
     getLoseReason(): string {
