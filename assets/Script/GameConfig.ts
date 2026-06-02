@@ -1,6 +1,6 @@
 export default class GameConfig {
-    static readonly ROWS = 10;           // Количество строк игрового поля
-    static readonly COLS = 9;           // Количество столбцов игрового поля
+    static readonly ROWS = 11;           // Количество строк игрового поля
+    static readonly COLS = 10;           // Количество столбцов игрового поля
     static readonly MIN_BLAST_GROUP_SIZE = 4; // Минимальный размер группы тайлов для сжигания
     static readonly ONE_TILE_SCORE = 1; // Очков за один уничтоженный тайл
     static readonly WIN_SCORE = 100;    // Цель по очкам для победы
