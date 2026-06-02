@@ -29,16 +29,6 @@ export default class GameController extends cc.Component {
     @property(cc.Node)
     boardNode: cc.Node | null = null;
 
-    /** Узел с Sprite на весь экран; если пусто — ищется дочерний `background` у Canvas */
-    @property(cc.Node)
-    appBackgroundNode: cc.Node | null = null;
-
-    @property(cc.SpriteFrame)
-    appBgMobile: cc.SpriteFrame | null = null;
-
-    @property(cc.SpriteFrame)
-    appBgDesktop: cc.SpriteFrame | null = null;
-
     onLoad() {
         cc.log('[GameController] ready');
 
@@ -57,13 +47,9 @@ export default class GameController extends cc.Component {
         }
 
 
-        this.autoFitCanvas();
-        this.applyAppBackground();
-        //this.scheduleOnce(() => this.applyAppBackground(), 0);
     }
 
     start() {
-        //this.applyAppBackground();
         this._board = new Board(GameConfig.COLS, GameConfig.ROWS);
         cc.log('[GameController] Board created:', this._board.toString());
 
@@ -115,68 +101,6 @@ export default class GameController extends cc.Component {
 
         return true;
     }
-
-    private autoFitCanvas() {
-        const canvas = this.node.getComponent(cc.Canvas);
-
-        const designSize = cc.view.getDesignResolutionSize();
-        cc.log('designSize', designSize);
-
-        const screenSize = cc.view.getFrameSize();
-        cc.log('screenSize', screenSize);
-
-        /* Здесь нужно дорабатывать поэтому убрал
-
-        // Сравниваем соотношения сторон дизайна и экрана устройства
-        if (screenSize.width / screenSize.height > designSize.width / designSize.height) {
-            // Экран шире -> подгоняем по высоте
-            canvas.fitHeight = true;
-            canvas.fitWidth = false;
-        } else {
-            // Экран уже -> подгоняем по ширине
-            canvas.fitWidth = true;
-            canvas.fitHeight = false;
-        }
-        */
-        canvas.fitHeight = true; // Так проще
-    }
-
-    /** Фон приложения: мобильный / десктопный спрайт по `cc.sys.isMobile` */
-    private applyAppBackground(): void {
-        const bgNode = this.appBackgroundNode || this.node.getChildByName('background');
-        if (!bgNode) {
-            cc.warn('[GameController] Background node not found. Add child `background` with Sprite or assign appBackgroundNode.');
-            return;
-        }
-
-        const sprite = bgNode.getComponent(cc.Sprite);
-        if (!sprite) {
-            cc.warn('[GameController] Node for app background has no Sprite component.');
-            return;
-        }
-
-        bgNode.color = cc.color(255, 255, 255);
-        bgNode.opacity = 255;
-        bgNode.zIndex = -1000;
-
-        const parent = bgNode.parent;
-        if (parent) {
-            const cameraNode = parent.getChildByName('Main Camera');
-            const targetIndex = cameraNode ? cameraNode.getSiblingIndex() + 1 : 0;
-            bgNode.setSiblingIndex(targetIndex);
-        }
-
-        const frame = cc.sys.isMobile ? this.appBgMobile : this.appBgDesktop;
-        if (frame) {
-            sprite.spriteFrame = frame;
-            cc.log(`[GameController] App background: ${cc.sys.isMobile ? 'mobile' : 'desktop'}`);
-        } else {
-            cc.warn(
-                `[GameController] Assign appBgMobile and appBgDesktop in Inspector (missing: ${cc.sys.isMobile ? 'appBgMobile' : 'appBgDesktop'}).`
-            );
-        }
-    }
-
 
     private refreshHud(): void {
         if (!this._hudView) {
