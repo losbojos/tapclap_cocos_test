@@ -46,7 +46,6 @@ export default class GameController extends cc.Component {
             this._boostersView = boostersNode ? boostersNode.getComponent(BoostersView) : null;
         }
 
-
     }
 
     start() {

@@ -200,7 +200,7 @@ export default class BoardView extends cc.Component {
 
         const area = this.getBlastArea(cells, colCount, rowCount);
         if (BoardView.WHITE_SPRITE_FRAME) {
-            AnimateEffects.playBombVfx(
+            AnimateEffects.playBombEffect(
                 this.getTilesRoot(),
                 BoardView.WHITE_SPRITE_FRAME,
                 area.center,
@@ -353,8 +353,10 @@ export default class BoardView extends cc.Component {
     }
 
     /**
-     * Падение: выживший сдвигается, если старый row ≠ новый index (после compact).
-     * Refill: в столбце height - survivors.length новых (= число сгоревших в этом столбце).
+     * Считает, сколько твинов движения нужно запустить для всех колонок.
+     * 1) Выжившие тайлы: +1, если тайл должен упасть в другой row.
+     * 2) Новые тайлы: +1 на каждый создаваемый тайл (для заполнения пустот сверху).
+     * Нужен для createTweenCounter, чтобы понять, когда анимация полностью закончена.
      */
     private countColumnMoveTweens(
         columnSurvivors: Map<number, cc.Node[]>,
@@ -379,6 +381,12 @@ export default class BoardView extends cc.Component {
         return count;
     }
 
+    /**
+     * Анимирует пересборку всех колонок после удаления:
+     * - выжившие тайлы падают на новые row;
+     * - недостающие тайлы создаются сверху и прилетают вниз.
+     * По завершении всех твинов вызывается onComplete.
+     */
     private animateColumnMoves(
         board: Board,
         columnSurvivors: Map<number, cc.Node[]>,

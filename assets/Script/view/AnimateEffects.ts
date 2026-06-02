@@ -122,7 +122,7 @@ export default class AnimateEffects {
     }
 
     /** Кольцо, вспышка и частицы по всей зоне взрыва. */
-    static playBombVfx(
+    static playBombEffect(
         layer: cc.Node,
         spriteFrame: cc.SpriteFrame,
         areaCenter: cc.Vec2,
@@ -153,7 +153,7 @@ export default class AnimateEffects {
         durationSec: number,
         endScale: number
     ): void {
-        const node = new cc.Node("bomb_vfx");
+        const node = new cc.Node("bomb_visual_effect");
         const sprite = node.addComponent(cc.Sprite);
         sprite.spriteFrame = spriteFrame;
         node.color = color;

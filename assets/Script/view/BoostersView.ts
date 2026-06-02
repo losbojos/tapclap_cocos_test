@@ -64,7 +64,7 @@ export default class BoostersView extends cc.Component {
         this.renderBoosterButtons();
     }
 
-    /** Обновить цифры и подсветку из model (как HudView.render). */
+    /** Обновить отображение бустеров из состояния. */
     render(inventory: BoosterInventory, armedBooster: BoosterType | null): void {
         if (this._boosterStates.size === 0) {
             return;
