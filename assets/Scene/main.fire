@@ -1511,8 +1511,12 @@
       "__id__": 29
     },
     "_enabled": true,
-    "cellSize": 100,
-    "padding": -10,
+    "frameNode": {
+      "__id__": 30
+    },
+    "frameInset": 35,
+    "tileGapX": 0,
+    "tileGapY": -10,
     "tileAtlas": {
       "__uuid__": "51cf15aa-333b-420a-b875-c56e25c26fdf"
     },

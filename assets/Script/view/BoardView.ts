@@ -38,11 +38,17 @@ export default class BoardView extends cc.Component {
 
     private static WHITE_SPRITE_FRAME: cc.SpriteFrame | null = null;
 
-    @property(cc.Integer)
-    cellSize: number = 50;
+    @property({ type: cc.Node, tooltip: 'Узел фона с рамкой (по умолчанию дочерний bg)' })
+    frameNode: cc.Node | null = null;
 
-    @property(cc.Integer)
-    padding: number = 1;
+    @property({ tooltip: 'Отступ сетки от краёв bg, чтобы была видна рамка' })
+    frameInset: number = 35;
+
+    @property({ tooltip: 'Горизонтальный зазор между ячейками (px)' })
+    tileGapX: number = 0;
+
+    @property({ tooltip: 'Вертикальный зазор между ячейками (px): отрицательное => шапки тайлов наезжают друг на друга' })
+    tileGapY: number = -10;
 
     @property(cc.SpriteAtlas)
     tileAtlas: cc.SpriteAtlas | null = null;
@@ -61,6 +67,10 @@ export default class BoardView extends cc.Component {
 
     @property({ tooltip: 'Длительность прилёта новых тайлов (сек)' })
     refillDuration: number = 0.28;
+
+    private _cellSize: number = 50; // Размер тайла (px), рассчитывается в applyGridLayout() с учётом размера frameNode и GameConfig ROWS/COLS
+    private _stepX: number = 50; // Шаг позиции тайлов по X (px), с учётом tileGapX
+    private _stepY: number = 40; // Шаг позиции тайлов по Y (px), с учётом tileGapY
 
     private _tileSpriteFrames: Map<TileColor, cc.SpriteFrame> = new Map();
     private _tileNodes: Map<string, cc.Node> = new Map();
@@ -90,6 +100,10 @@ export default class BoardView extends cc.Component {
     }
 
     onLoad() {
+        if (!this.frameNode) {
+            this.frameNode = this.node.getChildByName('bg') ?? this.node;
+        }
+
         BoardView.createWhiteSpriteFrame();
         this.loadTileSpriteFrames();
         this._tilesLayer = this.node.getChildByName('tilesLayer');
@@ -125,6 +139,7 @@ export default class BoardView extends cc.Component {
         if (!this._tilesLayer) {
             return;
         }
+        this.applyGridLayout(board.colCount, board.rowCount);
         this.clearTiles();
 
         const width = board.colCount;
@@ -172,7 +187,7 @@ export default class BoardView extends cc.Component {
         const rowCount = board.rowCount;
         const removeKeys = new Set(cells.map(cell => BoardView.cellKey(cell.col, cell.row)));
         const centerPos = this.cellToLocalPosition(centerCol, centerRow, colCount, rowCount);
-        const cellStep = this.cellSize + this.padding;
+        const cellStep = Math.max(this._stepX, this._stepY);
 
         const columnSurvivors = this.collectColumnSurvivors(removeKeys);
         const blastEntries: BombTileAnimEntry[] = [];
@@ -322,7 +337,6 @@ export default class BoardView extends cc.Component {
             maxRow = Math.max(maxRow, cell.row);
         });
 
-        const cellStep = this.cellSize + this.padding;
         return {
             center: this.cellToLocalPosition(
                 (minCol + maxCol) / 2,
@@ -331,8 +345,8 @@ export default class BoardView extends cc.Component {
                 rowCount
             ),
             halfSize: cc.v2(
-                ((maxCol - minCol + 1) * cellStep) / 2,
-                ((maxRow - minRow + 1) * cellStep) / 2
+                ((maxCol - minCol + 1) * this._stepX) / 2,
+                ((maxRow - minRow + 1) * this._stepY) / 2
             ),
         };
     }
@@ -476,9 +490,28 @@ export default class BoardView extends cc.Component {
         return this._tilesLayer!;
     }
 
+    /** Подгоняет размер клетки под frameNode и GameConfig ROWS/COLS. */
+    private applyGridLayout(colCount: number, rowCount: number): void {
+        const frameSize = this.frameNode.getContentSize();
+        const inset = Math.max(0, this.frameInset);
+        const availW = Math.max(0, frameSize.width - inset * 2);
+        const availH = Math.max(0, frameSize.height - inset * 2);
+
+        const cellFromW = colCount > 0
+            ? (availW - this.tileGapX * (colCount - 1)) / colCount
+            : this._cellSize;
+        const cellFromH = rowCount > 0
+            ? (availH - this.tileGapY * (rowCount - 1)) / rowCount
+            : this._cellSize;
+
+        this._cellSize = Math.max(1, Math.floor(Math.min(cellFromW, cellFromH)));
+        this._stepX = this._cellSize + this.tileGapX;
+        this._stepY = this._cellSize + this.tileGapY;
+    }
+
     private cellToLocalPosition(col: number, row: number, width: number, height: number): cc.Vec2 {
-        const x = (col - width / 2 + 0.5) * (this.cellSize + this.padding);
-        const y = (row - height / 2 + 0.5) * (this.cellSize + this.padding);
+        const x = (col - width / 2 + 0.5) * this._stepX;
+        const y = (row - height / 2 + 0.5) * this._stepY;
         return cc.v2(x, y);
     }
 
@@ -535,12 +568,12 @@ export default class BoardView extends cc.Component {
             cc.error(`[BoardView] createTileNode (${col}, ${row}): no sprite frame available for ${color}`);
         }
 
-        tileNode.setContentSize(this.cellSize, this.cellSize);
+        tileNode.setContentSize(this._cellSize, this._cellSize);
 
         let baseScale = 1;
         if (spriteFrame) {
             const rect = spriteFrame.getRect();
-            const scale = Math.min(this.cellSize / rect.width, this.cellSize / rect.height);
+            const scale = Math.min(this._cellSize / rect.width, this._cellSize / rect.height);
             baseScale = scale;
             tileNode.setScale(scale, scale);
         }

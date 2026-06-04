@@ -83,7 +83,7 @@ BoostersView       — Отрисовка бустеров
 ```
 
 Конфигурация баланса, размера поля, и др. — `assets/Script/GameConfig.ts`.  
-Параметры доски (размер клетки, отступы) — компонент **BoardView** на узле `boardNode` в сцене.
+Размер клетки считается автоматически в **BoardView** по ROWS/COLS из GameConfig и размеру узла bg (frameInset, tileGapX, tileGapY — на boardNode в сцене).
 
 ## Структура сцены `main`
 
