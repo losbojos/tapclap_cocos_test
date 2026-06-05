@@ -12,7 +12,7 @@
   "design-resolution-width": 1080,
   "design-resolution-height": 1920,
   "fit-width": true,
-  "fit-height": false,
+  "fit-height": true,
   "use-project-simulator-setting": false,
   "simulator-orientation": false,
   "use-customize-simulator": true,
@@ -20,7 +20,7 @@
     "width": 1080,
     "height": 1920
   },
-  "last-module-event-record-time": 1779692722361,
+  "last-module-event-record-time": 1780383476787,
   "assets-sort-type": "name",
   "facebook": {
     "enable": false,

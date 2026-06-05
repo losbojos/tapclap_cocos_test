@@ -79,6 +79,7 @@ export default class BoardView extends cc.Component {
     private _onTileTeleport: TileTeleportHandler | null = null;
     private _isTeleportMode: boolean = false;
     private _isAnimating: boolean = false;
+    private _board: Board | null = null;
     private _dragSourceMeta: TileNodeMeta | null = null;
     private _dragSourceNode: cc.Node | null = null;
     private _dragGhostNode: cc.Node | null = null;
@@ -112,6 +113,19 @@ export default class BoardView extends cc.Component {
         }
     }
 
+    onEnable(): void {
+        cc.view.setResizeCallback(this.onViewResize);
+    }
+
+    onDisable(): void {
+        cc.view.setResizeCallback(() => {});
+        this.unschedule(this.refreshGridLayout);
+    }
+
+    private onViewResize = (): void => {
+        this.scheduleOnce(this.refreshGridLayout, 0);
+    };
+
     private loadTileSpriteFrames(): void {
         if (!this.tileAtlas) {
             cc.error('[BoardView] Tile atlas not assigned');
@@ -139,6 +153,7 @@ export default class BoardView extends cc.Component {
         if (!this._tilesLayer) {
             return;
         }
+        this._board = board;
         this.applyGridLayout(board.colCount, board.rowCount);
         this.clearTiles();
 
@@ -490,8 +505,27 @@ export default class BoardView extends cc.Component {
         return this._tilesLayer!;
     }
 
+    /** Пересчёт сетки после resize / смены ориентации (без пересоздания тайлов). */
+    private refreshGridLayout(): void {
+        if (!this._board || !this._tilesLayer || this._isAnimating || this._tileNodes.size === 0) {
+            return;
+        }
+
+        const colCount = this._board.colCount;
+        const rowCount = this._board.rowCount;
+        this.applyGridLayout(colCount, rowCount);
+        this.relayoutTileNodes(colCount, rowCount);
+    }
+
     /** Подгоняет размер клетки под frameNode и GameConfig ROWS/COLS. */
     private applyGridLayout(colCount: number, rowCount: number): void {
+        if (!this.frameNode) {
+            return;
+        }
+
+        const boardSize = this.node.getContentSize();
+        this.frameNode.setContentSize(boardSize.width, boardSize.height);
+
         const frameSize = this.frameNode.getContentSize();
         const inset = Math.max(0, this.frameInset);
         const availW = Math.max(0, frameSize.width - inset * 2);
@@ -507,6 +541,37 @@ export default class BoardView extends cc.Component {
         this._cellSize = Math.max(1, Math.floor(Math.min(cellFromW, cellFromH)));
         this._stepX = this._cellSize + this.tileGapX;
         this._stepY = this._cellSize + this.tileGapY;
+    }
+
+    private relayoutTileNodes(colCount: number, rowCount: number): void {
+        this._tileNodes.forEach((tileNode) => {
+            const meta = this.getTileNodeMeta(tileNode);
+            if (!meta) {
+                return;
+            }
+            this.applyTileNodeLayout(tileNode, meta.col, meta.row, colCount, rowCount);
+        });
+    }
+
+    private applyTileNodeLayout(
+        tileNode: cc.Node,
+        col: number,
+        row: number,
+        colCount: number,
+        rowCount: number
+    ): void {
+        tileNode.setContentSize(this._cellSize, this._cellSize);
+
+        const sprite = tileNode.getComponent(cc.Sprite);
+        let baseScale = 1;
+        if (sprite && sprite.spriteFrame) {
+            const rect = sprite.spriteFrame.getRect();
+            baseScale = Math.min(this._cellSize / rect.width, this._cellSize / rect.height);
+            tileNode.setScale(baseScale, baseScale);
+        }
+
+        tileNode.setPosition(this.cellToLocalPosition(col, row, colCount, rowCount));
+        this.setTileNodeMeta(tileNode, col, row, baseScale);
     }
 
     private cellToLocalPosition(col: number, row: number, width: number, height: number): cc.Vec2 {
@@ -568,18 +633,7 @@ export default class BoardView extends cc.Component {
             cc.error(`[BoardView] createTileNode (${col}, ${row}): no sprite frame available for ${color}`);
         }
 
-        tileNode.setContentSize(this._cellSize, this._cellSize);
-
-        let baseScale = 1;
-        if (spriteFrame) {
-            const rect = spriteFrame.getRect();
-            const scale = Math.min(this._cellSize / rect.width, this._cellSize / rect.height);
-            baseScale = scale;
-            tileNode.setScale(scale, scale);
-        }
-
-        tileNode.setPosition(this.cellToLocalPosition(col, row, width, height));
-        this.setTileNodeMeta(tileNode, col, row, baseScale);
+        this.applyTileNodeLayout(tileNode, col, row, width, height);
         this.bindTileTouch(tileNode);
 
         return tileNode;

@@ -37,12 +37,12 @@ export default class GameController extends cc.Component {
         }
 
         if (!this._hudView) {
-            const headerNode = this.node.getChildByName('hudNode');
+            const headerNode = this.findUiNode('hudNode');
             this._hudView = headerNode ? headerNode.getComponent(HudView) : null;
         }
 
         if (!this._boostersView) {
-            const boostersNode = this.node.getChildByName("boostersNode");
+            const boostersNode = this.findUiNode('boostersNode');
             this._boostersView = boostersNode ? boostersNode.getComponent(BoostersView) : null;
         }
 
@@ -280,5 +280,10 @@ export default class GameController extends cc.Component {
         }
 
         this.scheduleOnce(() => this.runShuffleAttempt(attempt + 1), GameConfig.SHUFFLE_STEP_DELAY_SEC);
+    }
+
+    /** hudNode / boostersNode могут быть внутри gameStack, не прямыми детьми Canvas. */
+    private findUiNode(name: string): cc.Node | null {
+        return cc.find(`gameStack/${name}`, this.node) ?? this.node.getChildByName(name);
     }
 }
